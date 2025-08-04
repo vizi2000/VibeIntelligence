@@ -258,3 +258,126 @@ async def update_project_readme(
     )
     
     return {"task_id": task.id, "message": "README update task created"}
+
+
+@router.post("/scanner/scan-project")
+async def scan_project(
+    project_id: int,
+    scan_type: str = "quick",
+    db: Session = Depends(get_db)
+):
+    """Scan a project for changes and health"""
+    developer_id = 1  # TODO: Get from auth
+    
+    task = await agent_manager.create_task(
+        developer_id=developer_id,
+        agent_type=AgentType.SCANNER,
+        task_name=f"Scan Project {project_id}",
+        description=f"Perform {scan_type} scan on project",
+        input_data={
+            "scan_type": scan_type,
+            "project_id": project_id
+        },
+        priority=TaskPriority.MEDIUM
+    )
+    
+    return {"task_id": task.id, "message": f"Project {scan_type} scan task created"}
+
+
+@router.post("/analyzer/analyze-code")
+async def analyze_code(
+    file_path: Optional[str] = None,
+    project_id: Optional[int] = None,
+    analysis_type: str = "code_quality",
+    db: Session = Depends(get_db)
+):
+    """Analyze code quality and patterns"""
+    developer_id = 1  # TODO: Get from auth
+    
+    task = await agent_manager.create_task(
+        developer_id=developer_id,
+        agent_type=AgentType.ANALYZER,
+        task_name=f"Code Analysis - {analysis_type}",
+        description=f"Analyze code for {analysis_type}",
+        input_data={
+            "analysis_type": analysis_type,
+            "file_path": file_path,
+            "project_id": project_id
+        },
+        priority=TaskPriority.MEDIUM
+    )
+    
+    return {"task_id": task.id, "message": f"Code {analysis_type} analysis task created"}
+
+
+@router.post("/monetization/find-opportunities")
+async def find_monetization_opportunities(
+    monetization_type: str = "opportunity_scan",
+    db: Session = Depends(get_db)
+):
+    """Find monetization opportunities"""
+    developer_id = 1  # TODO: Get from auth
+    
+    task = await agent_manager.create_task(
+        developer_id=developer_id,
+        agent_type=AgentType.MONETIZATION,
+        task_name="Find Monetization Opportunities",
+        description=f"Scan for {monetization_type} opportunities",
+        input_data={
+            "monetization_type": monetization_type
+        },
+        priority=TaskPriority.HIGH
+    )
+    
+    return {"task_id": task.id, "message": "Monetization scan task created"}
+
+
+@router.post("/tasks/suggest")
+async def suggest_tasks(
+    suggestion_type: str = "daily",
+    target_skill: Optional[str] = None,
+    project_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """Get AI-powered task suggestions"""
+    developer_id = 1  # TODO: Get from auth
+    
+    task = await agent_manager.create_task(
+        developer_id=developer_id,
+        agent_type=AgentType.TASK_SUGGESTER,
+        task_name=f"Generate {suggestion_type} task suggestions",
+        description="AI-powered task suggestions based on patterns",
+        input_data={
+            "suggestion_type": suggestion_type,
+            "target_skill": target_skill,
+            "project_id": project_id
+        },
+        priority=TaskPriority.MEDIUM
+    )
+    
+    return {"task_id": task.id, "message": f"{suggestion_type} task suggestions being generated"}
+
+
+@router.post("/tasks/break-down")
+async def break_down_task(
+    task_description: str,
+    estimated_hours: float = 4,
+    db: Session = Depends(get_db)
+):
+    """Break down large task into ADHD-friendly subtasks"""
+    developer_id = 1  # TODO: Get from auth
+    
+    task = await agent_manager.create_task(
+        developer_id=developer_id,
+        agent_type=AgentType.TASK_SUGGESTER,
+        task_name="Break Down Task",
+        description="Break large task into manageable subtasks",
+        input_data={
+            "suggestion_type": "break_task",
+            "task_description": task_description,
+            "estimated_hours": estimated_hours
+        },
+        priority=TaskPriority.HIGH
+    )
+    
+    return {"task_id": task.id, "message": "Task breakdown being generated"}
