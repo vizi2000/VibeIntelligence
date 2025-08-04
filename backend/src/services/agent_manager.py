@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 
 from ..agents.base_agent import BaseAgent
 from ..agents.documentation_agent import DocumentationAgent
+from ..agents.scanner_agent import ScannerAgent
+from ..agents.analyzer_agent import AnalyzerAgent
+from ..agents.monetization_agent import MonetizationAgent
 from ..models.agent_task import AgentTask, TaskStatus, TaskPriority, AgentType, AgentSchedule
 from ..models.developer_profile import DeveloperProfile
 from ..core.database import get_db
@@ -39,12 +42,16 @@ class AgentManager:
         
         # Initialize individual agents
         self.agents[AgentType.DOCUMENTATION] = DocumentationAgent()
+        self.agents[AgentType.SCANNER] = ScannerAgent()
+        self.agents[AgentType.ANALYZER] = AnalyzerAgent()
+        self.agents[AgentType.MONETIZATION] = MonetizationAgent()
         
         # More agents to be added:
-        # self.agents[AgentType.SCANNER] = ScannerAgent()
-        # self.agents[AgentType.ANALYZER] = AnalyzerAgent()
-        # self.agents[AgentType.MONETIZATION] = MonetizationAgent()
         # self.agents[AgentType.SKILL_TRACKER] = SkillTrackerAgent()
+        # self.agents[AgentType.TASK_SUGGESTER] = TaskSuggesterAgent()
+        # self.agents[AgentType.NEWS_AGGREGATOR] = NewsAggregatorAgent()
+        # self.agents[AgentType.COMPLIANCE_CHECKER] = ComplianceCheckerAgent()
+        # self.agents[AgentType.FEASIBILITY_ANALYST] = FeasibilityAnalystAgent()
         
         logger.info(f"✅ Initialized {len(self.agents)} agents")
     
