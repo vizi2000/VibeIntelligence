@@ -1,0 +1,134 @@
+version: '3.8'
+
+# Production deployment with Traefik to avoid port conflicts
+# Following Directive 4: Security & System Resilience
+
+services:
+  # Traefik Reverse Proxy - Single entry point
+  traefik:
+    image: traefik:v3.0
+    container_name: zenith_traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=admin@zenithcoder.local"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"      # Only expose standard ports
+      - "443:443"    # SSL port
+      - "8080:8080"  # Traefik dashboard (secure in production)
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+    networks:
+      - zenith_network
+    restart: unless-stopped
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: zenith_postgres_prod
+    environment:
+      POSTGRES_DB: zenith_coder
+      POSTGRES_USER: zenith
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-zenith_secure_password}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    networks:
+      - zenith_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U zenith"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: zenith_redis_prod
+    command: redis-server --requirepass ${REDIS_PASSWORD:-zenith_redis_secure}
+    volumes:
+      - redis_data_prod:/data
+    networks:
+      - zenith_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: zenith_backend_prod
+    environment:
+      - DATABASE_URL=postgresql://zenith:${DB_PASSWORD:-zenith_secure_password}@postgres:5432/zenith_coder
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-zenith_redis_secure}@redis:6379
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - HUGGINGFACE_API_TOKEN=${HUGGINGFACE_API_TOKEN}
+      - ENVIRONMENT=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - zenith_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.backend.rule=Host(`api.zenithcoder.local`) || Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=websecure"
+      - "traefik.http.routers.backend.tls.certresolver=myresolver"
+      - "traefik.http.services.backend.loadbalancer.server.port=8100"
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: zenith_frontend_prod
+    environment:
+      - VITE_API_URL=https://${DOMAIN}/api
+    networks:
+      - zenith_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`zenithcoder.local`) || Host(`${DOMAIN}`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+
+  # Optional: ChromaDB for vector storage
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: zenith_chromadb_prod
+    volumes:
+      - chromadb_data_prod:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - zenith_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=false"  # Internal service only
+
+networks:
+  zenith_network:
+    driver: bridge
+
+volumes:
+  postgres_data_prod:
+  redis_data_prod:
+  chromadb_data_prod:
