@@ -114,11 +114,11 @@ class OpenRouterProvider(BaseAIProvider):
             response = await self.client.post("/chat/completions", json=request_data)
             
             if response.status_code != 200:
-                error_data = await response.json()
+                error_data = response.json()
                 raise AIProviderException("OpenRouter", f"API error: {error_data.get('error', {}).get('message', 'Unknown error')}")
             
             # Parse response
-            data = await response.json()
+            data = response.json()
             content = data["choices"][0]["message"]["content"]
             tokens_used = data.get("usage", {}).get("total_tokens", 0)
             

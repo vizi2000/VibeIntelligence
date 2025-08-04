@@ -12,7 +12,13 @@ import sys
 # Add MCP client to path
 sys.path.append("/Users/wojciechwiesner/ai/mcp_toolbox/clients")
 
-from mcp_client import MCPClient
+try:
+    from mcp_client import MCPClient
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+    MCPClient = None
+    
 from ..models.project import Project
 from ..core.config import settings
 
@@ -32,6 +38,11 @@ class ZenithMCPIntegration:
         
     async def initialize(self):
         """Initialize MCP connection"""
+        if not MCP_AVAILABLE:
+            logger.warning("⚠️ MCP client not available - running without MCP integration")
+            self._initialized = False
+            return
+            
         try:
             self.client = MCPClient(
                 project_name=self.project_name,

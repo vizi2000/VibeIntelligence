@@ -197,6 +197,126 @@ class AIService:
         
         return suggestions
     
+    async def get_usage_stats(self) -> Dict[str, Any]:
+        """Get AI usage statistics"""
+        return await self.orchestrator.get_usage_stats()
+    
+    async def analyze_vibe(self, text: str) -> Dict[str, Any]:
+        """Analyze the vibe/sentiment of text"""
+        try:
+            response = await self.orchestrator.generate(
+                prompt=f"Analyze the emotional tone and vibe of this text. Rate the vibe score from 0-100 and choose an emoji: {text}",
+                task_type=TaskType.SUMMARIZATION,
+                temperature=0.7,
+                max_tokens=100
+            )
+            
+            # Simple parsing (in production, use structured output)
+            content = response["content"]
+            vibe_score = 75  # Default
+            vibe_emoji = "😊"
+            
+            # Try to extract score from response
+            import re
+            score_match = re.search(r'(\d+)', content)
+            if score_match:
+                vibe_score = min(100, int(score_match.group(1)))
+            
+            # Determine emoji based on score
+            if vibe_score >= 90:
+                vibe_emoji = "🤩"
+            elif vibe_score >= 80:
+                vibe_emoji = "😄"
+            elif vibe_score >= 70:
+                vibe_emoji = "😊"
+            elif vibe_score >= 60:
+                vibe_emoji = "🙂"
+            elif vibe_score >= 50:
+                vibe_emoji = "😐"
+            elif vibe_score >= 40:
+                vibe_emoji = "😕"
+            else:
+                vibe_emoji = "😢"
+            
+            sentiment = "positive" if vibe_score >= 60 else "negative" if vibe_score < 40 else "neutral"
+            
+            suggestions = []
+            if vibe_score < 70:
+                suggestions.append("Add more positive language to boost the vibe! ✨")
+                suggestions.append("Consider including encouraging words 💪")
+            
+            return {
+                "vibe_score": vibe_score,
+                "vibe_emoji": vibe_emoji,
+                "sentiment": sentiment,
+                "suggestions": suggestions
+            }
+            
+        except Exception as e:
+            logger.error(f"Vibe analysis error: {e}")
+            return {
+                "vibe_score": 75,
+                "vibe_emoji": "😊",
+                "sentiment": "positive",
+                "suggestions": ["Keep spreading good vibes!"]
+            }
+    
+    async def generate(
+        self,
+        prompt: str,
+        task_type: str = "general",
+        temperature: float = 0.7,
+        max_tokens: int = 500,
+        context: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """Generate AI response for any prompt"""
+        # Map string task type to enum
+        task_type_map = {
+            "general": TaskType.GENERAL,
+            "code": TaskType.CODE_GENERATION,
+            "analysis": TaskType.CODE_ANALYSIS,
+            "summary": TaskType.SUMMARIZATION,
+            "documentation": TaskType.DOCUMENTATION
+        }
+        
+        mapped_type = task_type_map.get(task_type, TaskType.GENERAL)
+        
+        response = await self.orchestrator.generate(
+            prompt=prompt,
+            task_type=mapped_type,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            context=context
+        )
+        
+        return response
+    
+    async def chat(self, message: str, context: str = "") -> Dict[str, str]:
+        """Chat with AI Assistant"""
+        try:
+            # Build conversational prompt
+            prompt = f"You are a helpful AI assistant for Zenith Coder. Be friendly, supportive, and use emojis occasionally.\n"
+            if context:
+                prompt += f"Context: {context}\n"
+            prompt += f"User: {message}\nAssistant:"
+            
+            response = await self.orchestrator.generate(
+                prompt=prompt,
+                task_type=TaskType.GENERAL,
+                temperature=0.8,
+                max_tokens=200
+            )
+            
+            return {
+                "response": response["content"]
+            }
+            
+        except Exception as e:
+            logger.error(f"Chat error: {e}")
+            return {
+                "response": "I'm here to help! Could you please rephrase your question? 🌟"
+            }
+    
     async def get_quantum_idea(self) -> str:
         """Get a quantum-inspired creative idea"""
         return await self.orchestrator.get_quantum_idea()

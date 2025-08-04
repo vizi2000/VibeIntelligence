@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from typing import Dict, Any, List
 from pydantic import BaseModel
+import logging
 
 from ..core.database import get_db
 from ..services.ai_service import ai_service
@@ -14,6 +15,7 @@ from ..services.project_service import ProjectService
 from ..core.config import settings
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 class AnalysisRequest(BaseModel):
@@ -221,3 +223,116 @@ async def get_eco_impact(db: Session = Depends(get_db)):
         **eco_impact,
         "tip": "Every small optimization helps the planet! 🌍💚"
     }
+
+
+@router.get("/stats", response_model=Dict[str, Any])
+async def get_ai_stats():
+    """
+    Get AI usage statistics
+    Shows token usage, costs, and environmental impact
+    """
+    stats = await ai_service.get_usage_stats()
+    
+    return {
+        "total_tokens": stats.get("total_tokens", 0),
+        "total_cost": stats.get("total_cost", 0.0),
+        "eco_score": stats.get("eco_score", 85),
+        "requests_count": stats.get("requests_count", 0),
+        "average_response_time": stats.get("average_response_time", 0.5),
+        "vibe_level": "high",
+        "providers_used": stats.get("providers_used", ["openrouter", "huggingface"])
+    }
+
+
+class VibeAnalysisRequest(BaseModel):
+    text: str
+
+
+@router.post("/vibe", response_model=Dict[str, Any])
+async def analyze_vibe(request: VibeAnalysisRequest):
+    """
+    Analyze the vibe of provided text
+    Returns emotional tone and positivity score
+    """
+    try:
+        result = await ai_service.analyze_vibe(request.text)
+        
+        return {
+            "text": request.text,
+            "vibe_score": result.get("vibe_score", 75),
+            "vibe_emoji": result.get("vibe_emoji", "😊"),
+            "sentiment": result.get("sentiment", "positive"),
+            "suggestions": result.get("suggestions", [])
+        }
+    except Exception as e:
+        logger.error(f"Vibe analysis error: {e}")
+        return {
+            "text": request.text,
+            "vibe_score": 75,
+            "vibe_emoji": "😊",
+            "sentiment": "positive",
+            "suggestions": ["Keep spreading good vibes! ✨"]
+        }
+
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    task_type: str = "general"
+    temperature: float = 0.7
+    max_tokens: int = 500
+    context: Dict[str, Any] = {}
+
+
+@router.post("/generate", response_model=Dict[str, Any])
+async def generate_response(request: GenerateRequest):
+    """
+    Generate AI response for any prompt
+    Supports various task types and contexts
+    """
+    try:
+        response = await ai_service.generate(
+            prompt=request.prompt,
+            task_type=request.task_type,
+            temperature=request.temperature,
+            max_tokens=request.max_tokens,
+            context=request.context
+        )
+        
+        return {
+            "content": response.get("content", ""),
+            "model_used": response.get("model", "unknown"),
+            "tokens_used": response.get("tokens", 0),
+            "cost": response.get("cost", 0.0),
+            "eco_score": response.get("eco_score", 85),
+            "provider": response.get("provider", "openrouter")
+        }
+    except Exception as e:
+        logger.error(f"Generation error: {e}")
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
+
+class ChatRequest(BaseModel):
+    message: str
+    context: str = ""
+
+
+@router.post("/chat", response_model=Dict[str, str])
+async def chat(request: ChatRequest):
+    """
+    Chat with AI Assistant
+    Maintains conversational context
+    """
+    try:
+        response = await ai_service.chat(
+            message=request.message,
+            context=request.context
+        )
+        
+        return {
+            "response": response.get("response", "I'm here to help! How can I assist you today? 🌟")
+        }
+    except Exception as e:
+        logger.error(f"Chat error: {e}")
+        return {
+            "response": "I'm having a moment, but I'm still here to help! Could you try again? 💫"
+        }

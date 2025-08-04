@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from .api import projects, scanner, deployments, health
 from .core.config import settings
 from .core.database import engine, Base
+from .mcp.integration import mcp_integration
 
 # Load environment variables
 load_dotenv()
@@ -44,6 +45,12 @@ async def lifespan(app: FastAPI):
     
     # Shutdown
     print("👋 Shutting down Zenith Coder API...")
+    
+    # Cleanup MCP
+    try:
+        await mcp_integration.cleanup()
+    except Exception:
+        pass
 
 # Create FastAPI app
 app = FastAPI(
