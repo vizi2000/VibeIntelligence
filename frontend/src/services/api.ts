@@ -135,6 +135,11 @@ export const aiApi = {
     const { data } = await api.post<{ issues: DEIIssue[] }>('/ai/dei-check', { code });
     return data.issues;
   },
+
+  async chat(request: { message: string; context?: string }): Promise<{ response: string }> {
+    const { data } = await api.post<{ response: string }>('/ai/chat', request);
+    return data;
+  },
 };
 
 export interface Project {
@@ -147,6 +152,9 @@ export interface Project {
   last_scan: string;
   created_at: string;
   updated_at: string;
+  project_type?: string;
+  git_url?: string;
+  current_branch?: string;
 }
 
 export interface ScanResult {

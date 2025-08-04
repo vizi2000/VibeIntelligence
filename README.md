@@ -2,6 +2,18 @@
 
 An AI-powered development platform designed to transform chaotic development environments into organized, automated, and monetization-focused ecosystems.
 
+## 🎉 Deployment Status
+
+**DEPLOYED** - The Zenith Coder platform is now live with Docker containers! 
+
+- **Backend API**: ✅ Healthy and running at `http://localhost/api/`
+- **Frontend**: 🚧 Running but requires Traefik configuration fix
+- **Database**: ✅ PostgreSQL running and healthy
+- **Redis**: ✅ Running for caching
+- **AI Services**: ✅ Integrated with OpenRouter and HuggingFace
+
+Last deployment: 2025-08-04 03:30 CEST
+
 ## 🎯 Purpose
 
 Zenith Coder is specifically built for developers (especially those with ADHD) to:
@@ -118,12 +130,48 @@ APP_PORT=8100
 FRONTEND_PORT=3100
 ```
 
+## 🚢 Production Deployment
+
+### Using Docker Compose (Recommended)
+
+The application uses Traefik as a reverse proxy to avoid port conflicts:
+
+```bash
+# Build and deploy all services
+docker-compose -f docker-compose.prod.yml up -d
+
+# Check deployment status
+docker ps
+
+# View logs
+docker-compose -f docker-compose.prod.yml logs -f
+
+# Stop deployment
+docker-compose -f docker-compose.prod.yml down
+```
+
+### Access Points
+- **Frontend**: http://localhost/
+- **Backend API**: http://localhost/api/
+- **API Documentation**: http://localhost/api/docs
+- **Traefik Dashboard**: http://localhost:8080/
+
+### Health Checks
+```bash
+# Check backend health
+curl http://localhost/api/health
+
+# Check all container status
+docker ps --format "table {{.Names}}\t{{.Status}}"
+```
+
 ## 📝 Development Guidelines
 
 This project follows the rules defined in:
 - `DEVELOPMENT_RULES.md` - E2E testing requirements
 - `GLOBAL_RULES.md` - System-wide deployment rules
 - `DEPLOYMENT_REGISTRY.md` - Active deployment tracking
+- `general_rules_v4.md` - Vibecoding principles
 
 ## 🤝 Contributing
 

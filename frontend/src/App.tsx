@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import AIAssistant from './pages/AIAssistant';
 import Projects from './pages/Projects';
 import Settings from './pages/Settings';
+import Monetization from './pages/Monetization';
 import Layout from './components/Layout';
 import { statsApi } from './services/api';
 
@@ -29,7 +30,8 @@ function App() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  const { data: healthStatus } = useQuery({
+  // Monitor health status
+  useQuery({
     queryKey: ['health'],
     queryFn: statsApi.getHealthStatus,
     refetchInterval: 30000,
@@ -42,6 +44,7 @@ function App() {
         <Route path="dashboard" element={<Dashboard />} />
         <Route path="ai-assistant" element={<AIAssistant />} />
         <Route path="projects" element={<Projects />} />
+        <Route path="monetization" element={<Monetization />} />
         <Route path="settings" element={<Settings />} />
       </Route>
     </Routes>

@@ -8,10 +8,18 @@ import logging
 from typing import Any, Dict, List, Optional, AsyncGenerator
 import httpx
 import json
-from transformers import pipeline, AutoTokenizer
-import torch
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
+
+# Optional imports for local models
+try:
+    from transformers import pipeline, AutoTokenizer
+    import torch
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("⚠️ Transformers not installed. Local model features disabled.")
 
 from .base_provider import BaseAIProvider
 from ...core.exceptions import AIProviderException
@@ -80,6 +88,10 @@ class HuggingFaceProvider(BaseAIProvider):
     
     async def _initialize_local_models(self) -> None:
         """Initialize lightweight local models for vibe analysis"""
+        if not TRANSFORMERS_AVAILABLE:
+            logger.info("📡 Transformers not available, using API-only mode")
+            return
+            
         try:
             logger.info("🤖 Loading local models for vibecoding...")
             

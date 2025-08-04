@@ -86,10 +86,9 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.backend.rule=Host(`api.zenithcoder.local`) || Host(`${DOMAIN}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.backend.entrypoints=websecure"
-      - "traefik.http.routers.backend.tls.certresolver=myresolver"
-      - "traefik.http.services.backend.loadbalancer.server.port=8100"
+      - "traefik.http.routers.backend.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.services.backend.loadbalancer.server.port=8000"
 
   # Frontend
   frontend:
@@ -98,16 +97,16 @@ services:
       dockerfile: Dockerfile
     container_name: zenith_frontend_prod
     environment:
-      - VITE_API_URL=https://${DOMAIN}/api
+      - VITE_API_URL=/api
     networks:
       - zenith_network
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`zenithcoder.local`) || Host(`${DOMAIN}`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
-      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "traefik.http.routers.zenithfrontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.zenithfrontend.entrypoints=web"
+      - "traefik.http.routers.zenithfrontend.priority=1"
+      - "traefik.http.services.zenithfrontend.loadbalancer.server.port=80"
 
   # Optional: ChromaDB for vector storage
   chromadb:

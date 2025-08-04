@@ -1,288 +1,226 @@
-import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { 
-  Sparkles, 
   TrendingUp, 
-  Target, 
-  Heart,
-  Zap,
-  AlertTriangle,
+  Bot,
   CheckCircle,
-  Coffee,
-  Lightbulb
+  Clock,
+  MoreVertical
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { projectsApi, statsApi, aiApi } from '@/services/api';
-import { useState, useEffect } from 'react';
-import toast from 'react-hot-toast';
+
+interface Project {
+  id: string;
+  name: string;
+  status: 'in-progress' | 'on-hold' | 'completed';
+  progress: number;
+  health: 'good' | 'fair' | 'poor';
+  inProgress: number;
+  notStarted: number;
+  completed: number;
+  approved?: number;
+}
 
 export default function Dashboard() {
-  const [greeting, setGreeting] = useState('');
-  const [quantumIdea, setQuantumIdea] = useState<string>('');
+  const [projects] = useState<Project[]>([
+    {
+      id: '1',
+      name: 'Authentication System',
+      status: 'in-progress',
+      progress: 53,
+      health: 'good',
+      inProgress: 1,
+      notStarted: 1,
+      completed: 0,
+    },
+    {
+      id: '2',
+      name: 'API Development',
+      status: 'on-hold',
+      progress: 50,
+      health: 'fair',
+      inProgress: 0,
+      notStarted: 0,
+      completed: 1,
+    },
+    {
+      id: '3',
+      name: 'Machine Learning Model',
+      status: 'completed',
+      progress: 83,
+      health: 'good',
+      completed: 0,
+      approved: 1,
+      inProgress: 0,
+      notStarted: 0,
+    },
+  ]);
 
-  const { data: projects, isLoading: projectsLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: projectsApi.getProjects,
-  });
+  const [revenue] = useState(4250);
 
-  const { data: stats } = useQuery({
-    queryKey: ['usage-stats'],
-    queryFn: statsApi.getUsageStats,
-  });
-
-  useEffect(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) {
-      setGreeting('Good morning, Vibecoder! ☀️');
-    } else if (hour < 17) {
-      setGreeting('Good afternoon, keep the vibe flowing! 🌤️');
-    } else {
-      setGreeting('Good evening, time to wind down! 🌙');
-    }
-  }, []);
-
-  const handleGetQuantumIdea = async () => {
-    try {
-      const idea = await aiApi.getQuantumIdea();
-      setQuantumIdea(idea.idea);
-      toast.success('Quantum idea generated! 🎨');
-    } catch (error) {
-      toast.error('Failed to generate quantum idea');
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'completed':
+        return 'text-green-600';
+      case 'in-progress':
+        return 'text-blue-600';
+      case 'on-hold':
+        return 'text-yellow-600';
+      default:
+        return 'text-gray-600';
     }
   };
 
-  const activeProjects = projects?.filter(p => p.status === 'active') || [];
-  const healthyProjects = activeProjects.filter(p => p.health_score > 80).length;
-  const needsAttention = activeProjects.filter(p => p.health_score < 60).length;
+  const getHealthBadge = (health: string) => {
+    const colors = {
+      good: 'bg-green-100 text-green-800',
+      fair: 'bg-yellow-100 text-yellow-800',
+      poor: 'bg-red-100 text-red-800',
+    };
+    return `inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[health as keyof typeof colors]}`;
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Hero Section */}
-      <Card className="bg-gradient-to-r from-purple-500 via-pink-500 to-rose-500 text-white border-0">
-        <CardContent className="p-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">{greeting}</h1>
-              <p className="text-lg opacity-90 mb-4">
-                Your vibe level is {stats?.vibe_level || 'high'} today! Let's create something amazing.
-              </p>
-              <div className="flex gap-3">
-                <Button 
-                  variant="secondary" 
-                  className="bg-white/20 hover:bg-white/30 text-white border-white/30"
-                  onClick={handleGetQuantumIdea}
-                >
-                  <Lightbulb className="w-4 h-4 mr-2" />
-                  Get Quantum Idea
-                </Button>
-                <Button variant="secondary" className="bg-white/20 hover:bg-white/30 text-white border-white/30">
-                  <Coffee className="w-4 h-4 mr-2" />
-                  Start Focus Session
-                </Button>
-              </div>
-            </div>
-            <div className="text-6xl">
-              <Sparkles className="w-24 h-24 opacity-50" />
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Quantum Idea Display */}
-      {quantumIdea && (
-        <Card className="border-purple-500/50 bg-purple-50/50 dark:bg-purple-950/20">
-          <CardContent className="p-6">
-            <div className="flex items-start gap-3">
-              <Sparkles className="w-6 h-6 text-purple-600 mt-1" />
-              <div>
-                <h3 className="font-semibold mb-2">Quantum Idea</h3>
-                <p className="text-muted-foreground">{quantumIdea}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Active Projects
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{activeProjects.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {healthyProjects} healthy, {needsAttention} need attention
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Eco Score
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {stats?.eco_score || 95}%
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Sustainable coding! 🌱
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              AI Tokens Used
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats?.total_tokens?.toLocaleString() || '0'}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Cost: ${stats?.total_cost?.toFixed(2) || '0.00'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Vibe Level
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold flex items-center gap-2">
-              {stats?.vibe_level || 'High'}
-              <Heart className="w-5 h-5 text-pink-500" />
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Keep spreading joy! ✨
-            </p>
-          </CardContent>
-        </Card>
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Active Projects</h1>
       </div>
 
-      {/* Projects Overview */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Active Projects</CardTitle>
-              <CardDescription>
-                Your projects with AI-powered insights
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {projectsLoading ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  Loading projects...
-                </div>
-              ) : activeProjects.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No active projects yet. Create one to get started!
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {activeProjects.slice(0, 5).map((project) => (
-                    <div
-                      key={project.id}
-                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-accent/50 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={`w-3 h-3 rounded-full ${
-                          project.health_score > 80 ? 'bg-green-500' :
-                          project.health_score > 60 ? 'bg-yellow-500' : 'bg-red-500'
-                        }`} />
-                        <div>
-                          <h4 className="font-semibold">{project.name}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {project.description}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <div className="text-sm font-medium">
-                            Health: {project.health_score}%
-                          </div>
-                          <div className="text-xs text-muted-foreground">
-                            Last scan: {new Date(project.last_scan).toLocaleDateString()}
-                          </div>
-                        </div>
-                        <Button size="sm" variant="outline">
-                          View
-                        </Button>
-                      </div>
+      {/* Main Grid */}
+      <div className="grid grid-cols-12 gap-6">
+        {/* Projects Section - Left Side */}
+        <div className="col-span-8 space-y-4">
+          {projects.map((project) => (
+            <Card key={project.id} className="overflow-hidden card-hover">
+              <CardContent className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">{project.name}</h3>
+                    <div className="flex items-center gap-4 mt-2">
+                      <span className={getHealthBadge(project.health)}>
+                        {project.health.charAt(0).toUpperCase() + project.health.slice(1)}
+                      </span>
+                      <span className={`text-sm font-medium ${getStatusColor(project.status)}`}>
+                        {project.status === 'in-progress' ? 'In Progress' : 
+                         project.status === 'on-hold' ? 'On Hold' : 'Completed'}
+                      </span>
                     </div>
-                  ))}
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+
+                {/* Progress Bar */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="text-gray-600">{project.progress}%</span>
+                  </div>
+                  <div className="progress-bar">
+                    <div 
+                      className="progress-fill"
+                      style={{ width: `${project.progress}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Status Pills */}
+                <div className="flex items-center gap-4 text-sm">
+                  {project.inProgress > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-blue-500 rounded-full" />
+                      <span className="text-gray-600">In Progress</span>
+                    </div>
+                  )}
+                  {project.notStarted && project.notStarted > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-gray-400 rounded-full" />
+                      <span className="text-gray-600">On not</span>
+                    </div>
+                  )}
+                  {project.completed > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-green-500 rounded-full" />
+                      <span className="text-gray-600">Completed</span>
+                    </div>
+                  )}
+                  {project.approved && project.approved > 0 && (
+                    <div className="flex items-center gap-1">
+                      <span className="w-2 h-2 bg-purple-500 rounded-full" />
+                      <span className="text-gray-600">Approved</span>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
-        {/* Quick Actions */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="w-5 h-5" />
-                Quick Actions
-              </CardTitle>
+        {/* Right Side Panels */}
+        <div className="col-span-4 space-y-6">
+          {/* AI Assistant Card */}
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">AI Assistant</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <Button className="w-full justify-start" variant="outline">
-                <Target className="w-4 h-4 mr-2" />
-                Scan All Projects
-              </Button>
-              <Button className="w-full justify-start" variant="outline">
-                <TrendingUp className="w-4 h-4 mr-2" />
-                Generate Weekly Report
-              </Button>
-              <Button className="w-full justify-start" variant="outline">
-                <CheckCircle className="w-4 h-4 mr-2" />
-                Fix All DEI Issues
-              </Button>
-              <Button className="w-full justify-start" variant="outline">
-                <AlertTriangle className="w-4 h-4 mr-2" />
-                Security Audit
-              </Button>
+            <CardContent className="space-y-4">
+              {/* Bot Avatar */}
+              <div className="flex justify-center">
+                <div className="w-24 h-24 rounded-full gradient-primary flex items-center justify-center">
+                  <Bot className="w-12 h-12 text-white" />
+                </div>
+              </div>
+              
+              {/* Chat Messages */}
+              <div className="space-y-3">
+                <div className="chat-bubble chat-bubble-bot">
+                  <p className="text-sm">Hello! How can I assist you today?</p>
+                </div>
+                <div className="chat-bubble chat-bubble-user">
+                  <p className="text-sm">Can you suggest some code improvements?</p>
+                </div>
+                <div className="chat-bubble chat-bubble-bot">
+                  <p className="text-sm">Sure! Here are some suggestions...</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Heart className="w-5 h-5 text-pink-500" />
-                Wellness Check
-              </CardTitle>
+          {/* Monetization Card */}
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">Monetization</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span>Coding time today</span>
-                  <span className="font-medium">2h 45m</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Breaks taken</span>
-                  <span className="font-medium text-green-600">3</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Hydration reminder</span>
-                  <span className="font-medium text-blue-600">In 15m</span>
+            <CardContent className="space-y-4">
+              {/* Revenue */}
+              <div>
+                <p className="text-sm text-gray-600">Revenue</p>
+                <p className="text-3xl font-bold gradient-text">${revenue.toLocaleString()}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  <TrendingUp className="w-4 h-4 text-green-500" />
+                  <span className="text-sm text-green-600">+12% from last month</span>
                 </div>
               </div>
-              <Button className="w-full mt-4" variant="secondary">
-                <Coffee className="w-4 h-4 mr-2" />
-                Take a Break
-              </Button>
+
+              {/* Opportunities */}
+              <div className="pt-4 border-t">
+                <p className="text-sm text-gray-600 mb-3">Freelance Opportunities</p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <span className="text-sm">Payment Integration</span>
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <span className="text-sm">Code Review</span>
+                    <CheckCircle className="w-4 h-4 text-green-500" />
+                  </div>
+                  <div className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <span className="text-sm">Bug Fixes</span>
+                    <Clock className="w-4 h-4 text-yellow-500" />
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

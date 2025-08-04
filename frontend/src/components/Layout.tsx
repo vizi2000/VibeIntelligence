@@ -1,114 +1,114 @@
-import { Outlet, NavLink } from 'react-router-dom';
+import { Link, Outlet, useLocation } from 'react-router-dom';
+import { useState } from 'react';
 import { 
-  BarChart3, 
+  LayoutDashboard, 
   FolderOpen, 
   Bot, 
-  Settings,
-  Moon,
-  Sun,
-  Sparkles,
-  Heart
+  DollarSign,
+  Search,
+  Bell,
+  User,
+  Zap
 } from 'lucide-react';
 import { Button } from './ui/button';
-import { cn } from '@/lib/utils';
 
 interface LayoutProps {
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
 }
 
-const navigation = [
-  { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
-  { name: 'AI Assistant', href: '/ai-assistant', icon: Bot },
-  { name: 'Projects', href: '/projects', icon: FolderOpen },
-  { name: 'Settings', href: '/settings', icon: Settings },
-];
+export default function Layout({ }: LayoutProps) {
+  const location = useLocation();
+  const [searchQuery, setSearchQuery] = useState('');
 
-export default function Layout({ theme, setTheme }: LayoutProps) {
+  const navigation = [
+    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+    { name: 'Projects', href: '/projects', icon: FolderOpen },
+    { name: 'AI Assistant', href: '/ai-assistant', icon: Bot },
+    { name: 'Monetization', href: '/monetization', icon: DollarSign },
+  ];
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center text-white font-bold">
-                <Sparkles className="w-5 h-5" />
+    <div className="min-h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div className="fixed inset-y-0 left-0 z-50 w-64 bg-[var(--sidebar-bg)]">
+        <div className="flex h-full flex-col">
+          {/* Logo */}
+          <div className="flex h-16 items-center px-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg gradient-primary">
+                <Zap className="h-6 w-6 text-white" />
               </div>
-              <h1 className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Zenith Coder
-              </h1>
+              <span className="text-xl font-bold text-white">ZENITH CODER</span>
             </div>
-            <span className="text-sm text-muted-foreground flex items-center gap-1">
-              v4.0 <Heart className="w-3 h-3 text-pink-500" />
-            </span>
           </div>
-          
-          <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-              aria-label="Toggle theme"
-            >
-              {theme === 'light' ? (
-                <Moon className="h-5 w-5" />
-              ) : (
-                <Sun className="h-5 w-5" />
-              )}
-            </Button>
-          </div>
-        </div>
-      </header>
 
-      <div className="flex">
-        {/* Sidebar */}
-        <aside className="w-64 border-r bg-card/30 min-h-[calc(100vh-65px)]">
-          <nav className="p-4 space-y-2">
-            {navigation.map((item) => (
-              <NavLink
-                key={item.name}
-                to={item.href}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors',
+          {/* Navigation */}
+          <nav className="flex-1 space-y-1 px-3 py-4">
+            {navigation.map((item) => {
+              const isActive = location.pathname === item.href;
+              const Icon = item.icon;
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all ${
                     isActive
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  )
-                }
-              >
-                <item.icon className="h-5 w-5" />
-                {item.name}
-              </NavLink>
-            ))}
+                      ? 'bg-white/10 text-white'
+                      : 'text-white/70 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
           </nav>
+        </div>
+      </div>
 
-          {/* Vibe Status */}
-          <div className="mt-8 mx-4 p-4 bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-lg border border-purple-500/20">
-            <h3 className="font-semibold mb-2 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-500" />
-              Vibe Status
-            </h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span>Joy Level</span>
-                <span className="font-medium">95%</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Eco Score</span>
-                <span className="font-medium text-green-600">A+</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Tasks Today</span>
-                <span className="font-medium">12</span>
+      {/* Main content */}
+      <div className="pl-64">
+        {/* Top bar */}
+        <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
+          <div className="flex h-16 items-center justify-between px-6">
+            {/* Search bar */}
+            <div className="flex flex-1 items-center max-w-md">
+              <div className="relative w-full">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search"
+                  className="w-full rounded-lg border border-gray-300 bg-gray-50 py-2 pl-10 pr-4 text-sm outline-none focus:border-purple-500 focus:bg-white"
+                />
               </div>
             </div>
-          </div>
-        </aside>
 
-        {/* Main Content */}
-        <main className="flex-1 p-6">
+            {/* Right side icons */}
+            <div className="flex items-center gap-3">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative"
+              >
+                <Bell className="h-5 w-5 text-gray-600" />
+                <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+              >
+                <User className="h-5 w-5 text-gray-600" />
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="min-h-[calc(100vh-4rem)]">
           <Outlet />
         </main>
       </div>
