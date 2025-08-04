@@ -8,10 +8,11 @@ from contextlib import asynccontextmanager
 import os
 from dotenv import load_dotenv
 
-from .api import projects, scanner, deployments, health
+from .api import projects, scanner, deployments, health, agents
 from .core.config import settings
 from .core.database import engine, Base
 from .mcp.integration import mcp_integration
+from .services.agent_manager import agent_manager
 
 # Load environment variables
 load_dotenv()
@@ -41,10 +42,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠️ MCP integration unavailable: {e}")
     
+    # Initialize Agent Manager
+    try:
+        await agent_manager.initialize()
+        await agent_manager.start()
+        print("✅ Agent Manager started!")
+    except Exception as e:
+        print(f"⚠️ Agent Manager unavailable: {e}")
+    
     yield
     
     # Shutdown
     print("👋 Shutting down Zenith Coder API...")
+    
+    # Stop Agent Manager
+    try:
+        await agent_manager.stop()
+    except Exception:
+        pass
     
     # Cleanup MCP
     try:
@@ -74,6 +89,7 @@ app.include_router(health.router, tags=["health"])
 app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
 app.include_router(scanner.router, prefix="/api/v1/scanner", tags=["scanner"])
 app.include_router(deployments.router, prefix="/api/v1/deployments", tags=["deployments"])
+app.include_router(agents.router, prefix="/api/v1/agents", tags=["agents"])
 
 # Include AI routes if vibecoding is enabled
 if settings.enable_vibecoding:
