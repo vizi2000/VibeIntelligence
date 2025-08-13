@@ -27,9 +27,15 @@ async def start_scan(
     db: Session = Depends(get_db)
 ):
     """Start a project scan"""
+    # Convert host path to container path if needed
+    scan_path = request.path
+    if scan_path and scan_path.startswith("/Users/"):
+        # Convert macOS path to container path
+        scan_path = scan_path.replace("/Users/wojciechwiesner/ai", "/ai_projects")
+    
     service = ScannerService(db)
     scan_id = service.start_scan(
-        path=request.path,
+        path=scan_path,
         full_scan=request.full_scan,
         background_tasks=background_tasks
     )

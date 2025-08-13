@@ -66,6 +66,16 @@ async def get_system_status():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/stats")
+async def get_stats():
+    """Get agent system statistics"""
+    try:
+        stats = await agent_manager.get_system_stats()
+        return stats
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/agents", response_model=List[AgentStatusResponse])
 async def list_agents():
     """List all available agents and their status"""

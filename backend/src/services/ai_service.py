@@ -302,7 +302,7 @@ class AIService:
             
             response = await self.orchestrator.generate(
                 prompt=prompt,
-                task_type=TaskType.GENERAL,
+                task_type=TaskType.GENERAL_CHAT,
                 temperature=0.8,
                 max_tokens=200
             )

@@ -50,6 +50,50 @@ zenith-coder/
 └── docs/               # Documentation
 ```
 
+# VibeIntelligence (VI) 🚀
+
+An AI-powered development platform designed to transform chaotic development environments into organized, automated, and monetization-focused ecosystems, all while adhering to vibecoding principles.
+
+## 🎯 Purpose
+
+VibeIntelligence is the central governance platform for our development ecosystem. It provides a unified dashboard to scan, analyze, document, and manage all software projects. 
+
+Our core architectural strategy is to integrate VI with **`agent-zero`**, which serves as our foundational "Operating System" for all AI agent tasks. This allows VI to focus on its core domain of project management and UI, while `agent-zero` handles the complexities of agentic workflows.
+
+## 🗺️ Roadmap & Status
+
+The complete project vision, development roadmap, and current status are maintained in our living document:
+- **[./ROADMAP.md](./ROADMAP.md)**
+
+This document contains our sprint planning, bug tracker, and future enhancement list.
+
+## 📁 Project Structure
+
+```
+vibe-intelligence/
+├── backend/               # FastAPI backend
+│   ├── src/
+│   │   ├── api/          # API endpoints
+│   │   ├── core/         # Core functionality
+│   │   ├── models/       # Data models
+│   │   ├── services/     # Business logic
+│   │   └── utils/        # Utilities
+│   └── tests/            # Backend tests
+├── frontend/             # React TypeScript frontend
+│   ├── src/
+│   │   ├── components/   # React components
+│   │   ├── pages/        # Page components
+│   │   ├── services/     # API services
+│   │   └── utils/        # Frontend utilities
+│   └── public/           # Static assets
+├── database/             # Database files
+│   ├── migrations/       # Database migrations
+│   └── seeds/           # Seed data
+├── scripts/             # Utility scripts
+├── deployment/          # Deployment configurations
+└── docs/               # Documentation
+```
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -58,26 +102,70 @@ zenith-coder/
 - Docker and Docker Compose
 - PostgreSQL (via Docker)
 
-### Backend Setup
+### Docker Setup (Recommended)
 ```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn src.main:app --reload --port 8100
+# This will build and run all services for a development environment
+docker-compose up -d
 ```
 
-### Frontend Setup
+### Manual Setup
 ```bash
+# Backend
+cd backend
+pip install -r requirements.txt
+uvicorn src.main:app --reload --port 8101
+
+# Frontend
 cd frontend
 npm install
 npm run dev
 ```
 
-### Docker Setup
-```bash
-docker-compose up -d
+## 🔧 Configuration
+
+Create a `.env` file in the root directory from the `.env.example` template. Key variables include:
+
+```env
+# Database
+DATABASE_URL=postgresql://vi_user:vi_pass@localhost:5434/vi_db
+
+# AI Services
+OPENROUTER_API_KEY=your_key_here
+
+# Application
+API_PORT=8101
+FRONTEND_PORT=3101
 ```
+
+## 🚢 Production Deployment
+
+The production environment uses Traefik as a reverse proxy.
+
+```bash
+# Build and deploy all services for production
+docker-compose -f docker-compose.prod.yml up -d --build
+
+# Check deployment status
+docker ps
+
+# View logs
+docker-compose -f docker-compose.prod.yml logs -f
+```
+
+## 📝 Development Guidelines
+
+This project follows the rules defined in the global constitution and its own internal documentation:
+- `../docs/constitution/README.md` - The global "Zenith Coder" constitution.
+- `CLAUDE.md` - Specific instructions for AI agents working in this repository.
+
+## 🤝 Contributing
+
+See `CONTRIBUTING.md` for development guidelines and contribution process.
+
+## 📄 License
+
+MIT License - see LICENSE file for details.
+
 
 ## 🛠️ Current Status
 

@@ -42,11 +42,11 @@ class DocumentationAgent(BaseAgent):
         
         if task_type == "activity_summary":
             return await self._create_activity_summary(task, db)
-        elif task_type == "readme_update":
+        elif task_type == "readme" or task_type == "readme_update":
             return await self._update_readme(task, db)
         elif task_type == "adr_creation":
             return await self._create_adr(task, db)
-        elif task_type == "api_docs":
+        elif task_type == "api" or task_type == "api_docs":
             return await self._generate_api_docs(task, db)
         else:
             return await self._auto_document(task, db)
@@ -148,7 +148,12 @@ class DocumentationAgent(BaseAgent):
         ).order_by(DeveloperActivity.created_at.desc()).limit(20).all()
         
         # Read current README if exists
-        readme_path = f"{project.path}/README.md"
+        # Convert path for Docker container
+        project_path = project.path
+        if project_path.startswith("/Users/"):
+            project_path = project_path.replace("/Users/wojciechwiesner/ai", "/ai_projects")
+        
+        readme_path = f"{project_path}/README.md"
         current_readme = ""
         try:
             with open(readme_path, "r") as f:
@@ -173,21 +178,26 @@ class DocumentationAgent(BaseAgent):
         response = await self.use_ai(prompt, TaskType.DOCUMENTATION)
         updated_readme = response.get("content", current_readme)
         
-        # Write updated README
-        with open(readme_path, "w") as f:
+        # Write updated README to a safe location (can't write to read-only mount)
+        # Save to /tmp directory instead
+        safe_readme_path = f"/tmp/readme_{project_id}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.md"
+        with open(safe_readme_path, "w") as f:
             f.write(updated_readme)
         
         await self.log_activity(
             task.developer_id,
             "Updated README.md",
-            readme_path,
+            safe_readme_path,
             {"project_id": project_id, "changes": len(updated_readme) - len(current_readme)}
         )
         
         return {
-            "readme_path": readme_path,
+            "readme_path": safe_readme_path,
             "updated": True,
-            "size_change": len(updated_readme) - len(current_readme)
+            "size_change": len(updated_readme) - len(current_readme),
+            "documentation": updated_readme,
+            "file_path": safe_readme_path,
+            "original_path": readme_path
         }
     
     async def _create_adr(self, task: AgentTask, db: Session) -> Dict[str, Any]:

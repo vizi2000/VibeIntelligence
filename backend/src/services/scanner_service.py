@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 import asyncio
 import logging
+from datetime import datetime
 
 from ..models.project import Project
 from ..models.scan import ScanHistory, ScanResult
@@ -24,6 +25,16 @@ class ScannerService:
     def __init__(self, db: Session):
         self.db = db
         self.scan_status = {}  # In-memory status tracking
+    
+    def _serialize_datetime(self, obj):
+        """JSON serializer for objects not serializable by default json code"""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        elif isinstance(obj, dict):
+            return {k: self._serialize_datetime(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._serialize_datetime(item) for item in obj]
+        return obj
     
     def start_scan(
         self,
@@ -180,8 +191,9 @@ class ScannerService:
                 scan.new_projects = len([p for p in result["projects"] if not p.get("existing")])
                 scan.duplicates_found = result["duplicates_found"]
                 
-                # Store full result as JSON
-                scan.result_data = json.dumps(result)
+                # Store full result as JSON (with datetime serialization)
+                serialized_result = self._serialize_datetime(result)
+                scan.result_data = json.dumps(serialized_result)
                 self.db.commit()
             
             # Update status with vibecoding message

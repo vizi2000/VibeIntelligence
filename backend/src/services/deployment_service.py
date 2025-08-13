@@ -1,200 +1,200 @@
 """
-Deployment tracking service
+Deployment service for project deployments
 """
 
 from sqlalchemy.orm import Session
-from typing import List, Optional, Tuple, Dict
+from typing import Dict, Any, List, Optional
 from datetime import datetime
-import re
+import uuid
+import json
 from pathlib import Path
-from ..models.deployment import Deployment
+import asyncio
+
+from ..models.project import Project
+from ..models.deployment_config import DeploymentConfig, DeploymentStatus
 from ..core.config import settings
+from fastapi import BackgroundTasks
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DeploymentService:
     def __init__(self, db: Session):
         self.db = db
+        self.deployment_status = {}  # In-memory status tracking
     
-    def list_deployments(self, status: Optional[str] = None) -> List[Deployment]:
-        """List all deployments"""
-        query = self.db.query(Deployment)
-        
-        if status:
-            query = query.filter(Deployment.status == status)
-        
-        return query.all()
-    
-    def get_active_ports(self) -> List[int]:
-        """Get list of all active ports"""
-        deployments = self.db.query(Deployment.port).filter(
-            Deployment.is_active == True
-        ).all()
-        
-        return [d[0] for d in deployments]
-    
-    def check_port_availability(self, port: int) -> Tuple[bool, Optional[str]]:
-        """Check if a port is available"""
-        deployment = self.db.query(Deployment).filter(
-            Deployment.port == port,
-            Deployment.is_active == True
-        ).first()
-        
-        if deployment:
-            return False, deployment.service_name
-        
-        return True, None
-    
-    def register_deployment(
+    def start_deployment(
         self,
-        port: int,
-        service_name: str,
-        project_path: str,
-        status: str,
-        container_id: Optional[str] = None,
-        urls: List[str] = None
-    ) -> Deployment:
-        """Register a new deployment"""
-        deployment = Deployment(
-            port=port,
-            service_name=service_name,
-            project_path=project_path,
-            status=status,
-            container_id=container_id,
-            urls=urls or [],
-            started_at=datetime.utcnow(),
-            is_active=True
+        project: Project,
+        config: DeploymentConfig,
+        background_tasks: BackgroundTasks
+    ) -> Dict[str, Any]:
+        """Start a deployment"""
+        
+        deployment_id = str(uuid.uuid4())
+        
+        # Create deployment record
+        deployment = {
+            "id": deployment_id,
+            "project_id": project.id,
+            "project_name": project.name,
+            "environment": config.environment,
+            "deployment_type": config.deployment_type,
+            "status": "pending",
+            "started_at": datetime.utcnow().isoformat(),
+            "config": config.config_data
+        }
+        
+        # Store in memory
+        self.deployment_status[deployment_id] = deployment
+        
+        # Add background task
+        background_tasks.add_task(
+            self._perform_deployment,
+            deployment_id,
+            project,
+            config
         )
         
-        self.db.add(deployment)
-        self.db.commit()
-        self.db.refresh(deployment)
-        
-        # Also update DEPLOYMENT_REGISTRY.md
-        self._update_registry_file(deployment, action="add")
+        # Generate preview URL (mock for now)
+        if config.environment == "staging":
+            deployment["preview_url"] = f"https://{project.name.lower()}-{deployment_id[:8]}.zenith-staging.dev"
         
         return deployment
     
-    def unregister_deployment(self, port: int) -> bool:
-        """Unregister a deployment"""
-        deployment = self.db.query(Deployment).filter(
-            Deployment.port == port,
-            Deployment.is_active == True
-        ).first()
-        
-        if deployment:
-            deployment.is_active = False
-            deployment.stopped_at = datetime.utcnow()
-            deployment.status = "stopped"
-            self.db.commit()
-            
-            # Update registry file
-            self._update_registry_file(deployment, action="remove")
-            
-            return True
-        
-        return False
+    def get_deployment_status(self, deployment_id: str) -> Optional[Dict[str, Any]]:
+        """Get deployment status"""
+        return self.deployment_status.get(deployment_id)
     
-    def sync_with_registry_file(self) -> Dict:
-        """Sync database with DEPLOYMENT_REGISTRY.md file"""
-        registry_path = Path(settings.deployment_registry_path)
+    def get_project_deployments(self, project_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get deployment history for a project"""
         
-        if not registry_path.exists():
-            return {"error": "Registry file not found"}
+        # Return recent deployments from memory (mock)
+        deployments = []
+        for dep_id, dep in self.deployment_status.items():
+            if dep["project_id"] == project_id:
+                deployments.append(dep)
         
-        # Read and parse the registry file
-        with open(registry_path, 'r') as f:
-            content = f.read()
+        # Sort by started_at descending
+        deployments.sort(key=lambda x: x["started_at"], reverse=True)
         
-        # Parse active deployments from the file
-        file_deployments = self._parse_registry_file(content)
+        return deployments[:limit]
+    
+    async def _perform_deployment(
+        self,
+        deployment_id: str,
+        project: Project,
+        config: DeploymentConfig
+    ):
+        """Perform the actual deployment"""
         
-        # Get database deployments
-        db_deployments = self.db.query(Deployment).filter(
-            Deployment.is_active == True
-        ).all()
+        logger.info(f"🚀 Starting deployment {deployment_id} for {project.name}")
         
-        # Sync logic
-        added = 0
-        updated = 0
-        removed = 0
-        
-        # Add/update deployments from file
-        for port, deployment_info in file_deployments.items():
-            existing = self.db.query(Deployment).filter(
-                Deployment.port == port
-            ).first()
+        try:
+            # Update status
+            self.deployment_status[deployment_id]["status"] = "building"
+            self.deployment_status[deployment_id]["message"] = "Building project..."
             
-            if existing:
-                # Update existing
-                existing.service_name = deployment_info['service_name']
-                existing.project_path = deployment_info['project_path']
-                existing.status = deployment_info['status']
-                existing.is_active = True
-                updated += 1
+            # Simulate build process
+            await asyncio.sleep(5)
+            
+            # Check project type and deployment type
+            if config.deployment_type == "docker":
+                await self._deploy_docker(deployment_id, project, config)
+            elif config.deployment_type == "vercel":
+                await self._deploy_vercel(deployment_id, project, config)
+            elif config.deployment_type == "netlify":
+                await self._deploy_netlify(deployment_id, project, config)
             else:
-                # Add new
-                new_deployment = Deployment(
-                    port=port,
-                    service_name=deployment_info['service_name'],
-                    project_path=deployment_info['project_path'],
-                    status=deployment_info['status'],
-                    is_active=True
-                )
-                self.db.add(new_deployment)
-                added += 1
-        
-        # Mark deployments not in file as inactive
-        db_ports = [d.port for d in db_deployments]
-        for port in db_ports:
-            if port not in file_deployments:
-                deployment = next(d for d in db_deployments if d.port == port)
-                deployment.is_active = False
-                deployment.status = "stopped"
-                removed += 1
-        
-        self.db.commit()
-        
-        return {
-            "added": added,
-            "updated": updated,
-            "removed": removed,
-            "total_active": len(file_deployments)
-        }
-    
-    def _parse_registry_file(self, content: str) -> Dict[int, Dict]:
-        """Parse DEPLOYMENT_REGISTRY.md content"""
-        deployments = {}
-        
-        # Find the port allocation table
-        lines = content.split('\n')
-        in_table = False
-        
-        for line in lines:
-            if '| Port' in line and '| Service Name' in line:
-                in_table = True
-                continue
+                raise ValueError(f"Unsupported deployment type: {config.deployment_type}")
             
-            if in_table and line.strip().startswith('|'):
-                # Parse table row
-                parts = [p.strip() for p in line.split('|') if p.strip()]
-                
-                if len(parts) >= 7 and parts[0].isdigit():
-                    port = int(parts[0])
-                    
-                    # Skip reserved ports
-                    if parts[1] == '-':
-                        continue
-                    
-                    deployments[port] = {
-                        'service_name': parts[1],
-                        'project_path': parts[2],
-                        'status': 'running' if '🟢' in parts[3] else 'stopped',
-                        'container_id': parts[5] if parts[5] != '-' else None
-                    }
-        
-        return deployments
+            # Update final status
+            self.deployment_status[deployment_id]["status"] = "success"
+            self.deployment_status[deployment_id]["completed_at"] = datetime.utcnow().isoformat()
+            self.deployment_status[deployment_id]["message"] = "Deployment successful!"
+            
+            logger.info(f"✅ Deployment {deployment_id} completed successfully")
+            
+        except Exception as e:
+            logger.error(f"❌ Deployment {deployment_id} failed: {e}")
+            self.deployment_status[deployment_id]["status"] = "failed"
+            self.deployment_status[deployment_id]["error"] = str(e)
+            self.deployment_status[deployment_id]["message"] = f"Deployment failed: {str(e)}"
     
-    def _update_registry_file(self, deployment: Deployment, action: str):
-        """Update DEPLOYMENT_REGISTRY.md file (placeholder)"""
-        # In production, this would actually update the file
-        # For now, we'll just log the action
-        print(f"Would {action} deployment for port {deployment.port} in registry file")
+    async def _deploy_docker(
+        self,
+        deployment_id: str,
+        project: Project,
+        config: DeploymentConfig
+    ):
+        """Deploy using Docker"""
+        
+        # Check if project has Dockerfile
+        project_path = Path(project.path)
+        dockerfile = project_path / "Dockerfile"
+        
+        if not dockerfile.exists():
+            # Generate basic Dockerfile
+            self.deployment_status[deployment_id]["message"] = "Generating Dockerfile..."
+            await asyncio.sleep(2)
+            
+            # Mock Dockerfile generation
+            logger.info(f"Generated Dockerfile for {project.name}")
+        
+        # Mock Docker build and push
+        self.deployment_status[deployment_id]["message"] = "Building Docker image..."
+        await asyncio.sleep(3)
+        
+        self.deployment_status[deployment_id]["message"] = "Pushing to registry..."
+        await asyncio.sleep(2)
+        
+        self.deployment_status[deployment_id]["message"] = "Deploying container..."
+        await asyncio.sleep(2)
+        
+        # Set deployment URL
+        self.deployment_status[deployment_id]["deployment_url"] = \
+            f"https://{project.name.lower()}.zenith-apps.dev"
+    
+    async def _deploy_vercel(
+        self,
+        deployment_id: str,
+        project: Project,
+        config: DeploymentConfig
+    ):
+        """Deploy to Vercel"""
+        
+        self.deployment_status[deployment_id]["message"] = "Preparing Vercel deployment..."
+        await asyncio.sleep(2)
+        
+        # Mock Vercel deployment
+        self.deployment_status[deployment_id]["message"] = "Uploading to Vercel..."
+        await asyncio.sleep(3)
+        
+        self.deployment_status[deployment_id]["message"] = "Building on Vercel..."
+        await asyncio.sleep(4)
+        
+        # Set Vercel URL
+        self.deployment_status[deployment_id]["deployment_url"] = \
+            f"https://{project.name.lower()}-{deployment_id[:8]}.vercel.app"
+    
+    async def _deploy_netlify(
+        self,
+        deployment_id: str,
+        project: Project,
+        config: DeploymentConfig
+    ):
+        """Deploy to Netlify"""
+        
+        self.deployment_status[deployment_id]["message"] = "Preparing Netlify deployment..."
+        await asyncio.sleep(2)
+        
+        # Mock Netlify deployment
+        self.deployment_status[deployment_id]["message"] = "Uploading to Netlify..."
+        await asyncio.sleep(3)
+        
+        self.deployment_status[deployment_id]["message"] = "Building on Netlify..."
+        await asyncio.sleep(4)
+        
+        # Set Netlify URL
+        self.deployment_status[deployment_id]["deployment_url"] = \
+            f"https://{project.name.lower()}-{deployment_id[:8]}.netlify.app"

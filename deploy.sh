@@ -1,193 +1,124 @@
 #!/bin/bash
 
-# Zenith Coder Deployment Script
-# Following Directive 7: Performance & Scalability
-# Implements vibecoding deployment with zero-downtime
+# VibeIntelligence Remote Deployment Script
+# Target: vizi@borgtools.ddns.net
 
-set -e  # Exit on error
+set -e
 
-echo "🚀 Starting Zenith Coder Deployment with Vibecoding!"
-echo "=================================================="
+REMOTE_HOST="vizi@borgtools.ddns.net"
+REMOTE_DIR="~/vibeintelligence"
+LOCAL_DIR="$(pwd)"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
-# Colors for vibecoding output
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m' # No Color
+echo "🚀 VibeIntelligence Deployment to $REMOTE_HOST"
+echo "================================================"
 
-# Check if running as root (required for port 80/443)
-if [[ $EUID -ne 0 ]]; then
-   echo -e "${RED}❌ This script must be run as root for port 80/443 access${NC}"
-   echo "Please run: sudo ./deploy.sh"
-   exit 1
-fi
+# Step 1: Create deployment package
+echo "📦 Creating deployment package..."
+tar -czf vibeintelligence_deploy_${TIMESTAMP}.tar.gz \
+    --exclude='node_modules' \
+    --exclude='venv' \
+    --exclude='__pycache__' \
+    --exclude='.git' \
+    --exclude='*.pyc' \
+    --exclude='*.log' \
+    --exclude='.env.local' \
+    --exclude='test_*.png' \
+    --exclude='demo_*.png' \
+    --exclude='*.js' \
+    backend/ frontend/ docker-compose.prod.yml docker-compose.yml install.sh CLAUDE.md README.md
 
-# Function to check port availability
-check_port() {
-    local port=$1
-    if lsof -Pi :$port -sTCP:LISTEN -t >/dev/null ; then
-        echo -e "${RED}❌ Port $port is already in use!${NC}"
-        echo "Conflicting process:"
-        lsof -Pi :$port -sTCP:LISTEN
-        return 1
-    else
-        echo -e "${GREEN}✅ Port $port is available${NC}"
-        return 0
-    fi
-}
+echo "✅ Package created: vibeintelligence_deploy_${TIMESTAMP}.tar.gz"
 
-# Function to generate secure passwords
-generate_password() {
-    openssl rand -base64 32 | tr -d "=+/" | cut -c1-25
-}
+# Step 2: Upload to server
+echo "📤 Uploading to server..."
+scp vibeintelligence_deploy_${TIMESTAMP}.tar.gz ${REMOTE_HOST}:${REMOTE_DIR}/
 
-echo -e "${BLUE}🔍 Checking port availability...${NC}"
+# Step 3: Deploy on server
+echo "🔧 Deploying on server..."
+ssh ${REMOTE_HOST} << 'ENDSSH'
+cd ~/vibeintelligence
 
-# Check critical ports
-REQUIRED_PORTS=(80 443 8080)
-PORTS_AVAILABLE=true
+# Extract the latest deployment package
+LATEST_PACKAGE=$(ls -t vibeintelligence_deploy_*.tar.gz | head -1)
+echo "Extracting $LATEST_PACKAGE..."
+tar -xzf $LATEST_PACKAGE
 
-for port in "${REQUIRED_PORTS[@]}"; do
-    if ! check_port $port; then
-        PORTS_AVAILABLE=false
-    fi
-done
-
-if [ "$PORTS_AVAILABLE" = false ]; then
-    echo -e "${YELLOW}⚠️  Port conflicts detected!${NC}"
-    echo "Options:"
-    echo "1. Stop conflicting services"
-    echo "2. Use Traefik on alternative ports"
-    echo "3. Use development mode with high ports"
-    
-    read -p "Continue anyway? (y/n): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo -e "${RED}Deployment cancelled${NC}"
-        exit 1
-    fi
-fi
-
-# Environment setup
-echo -e "${BLUE}🔧 Setting up environment...${NC}"
-
-# Check for .env.production or create it
-if [ ! -f .env.production ]; then
-    echo -e "${YELLOW}Creating production environment file...${NC}"
-    
-    # Generate secure passwords
-    DB_PASSWORD=$(generate_password)
-    REDIS_PASSWORD=$(generate_password)
-    SECRET_KEY=$(generate_password)
-    
-    cat > .env.production << EOF
-# Zenith Coder Production Environment
-# Generated on $(date)
-
-# Domain Configuration
-DOMAIN=zenithcoder.local
+# Create .env file if it doesn't exist
+if [ ! -f .env ]; then
+    echo "Creating .env file..."
+    cat > .env << 'EOF'
+# VibeIntelligence Production Environment
+ENVIRONMENT=production
+DEBUG=false
+LOG_LEVEL=INFO
 
 # Database
-DB_PASSWORD=$DB_PASSWORD
+POSTGRES_USER=vi_user
+POSTGRES_PASSWORD=vi_secure_$(openssl rand -hex 12)
+POSTGRES_DB=vi_db
+DATABASE_URL=postgresql://vi_user:${POSTGRES_PASSWORD}@postgres:5432/vi_db
 
 # Redis
-REDIS_PASSWORD=$REDIS_PASSWORD
+REDIS_PASSWORD=redis_secure_$(openssl rand -hex 12)
+REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
 
 # Security
-SECRET_KEY=$SECRET_KEY
+SECRET_KEY=$(openssl rand -hex 32)
+JWT_SECRET_KEY=$(openssl rand -hex 32)
+CORS_ORIGINS=["https://borgtools.ddns.net","https://borg.tools"]
 
-# AI Services (add your keys)
+# AI Services (UPDATE THESE)
 OPENROUTER_API_KEY=
 HUGGINGFACE_API_TOKEN=
+ANTHROPIC_API_KEY=
+OPENAI_API_KEY=
 
-# Deployment
-ENVIRONMENT=production
+# Application
+API_PORT=8000
+FRONTEND_PORT=80
+PROJECT_SCAN_PATH=/ai_projects
+AI_PROJECTS_PATH=/home/vizi/projects
+
+# Domain
+DOMAIN=borgtools.ddns.net
+LETSENCRYPT_EMAIL=admin@borg.tools
 EOF
-    
-    echo -e "${GREEN}✅ Production environment created${NC}"
-    echo -e "${YELLOW}⚠️  Please add your API keys to .env.production${NC}"
+    echo "⚠️  Please update AI API keys in .env file"
 fi
 
-# Load environment
-set -a
-source .env.production
-set +a
+# Stop any existing containers
+echo "Stopping existing containers..."
+docker-compose -f docker-compose.prod.yml down 2>/dev/null || true
 
-# Build check
-echo -e "${BLUE}🏗️  Building containers...${NC}"
+# Build and start production containers
+echo "Building and starting containers..."
+docker-compose -f docker-compose.prod.yml up -d --build
 
-# Build with Docker Compose
-docker-compose -f docker-compose.prod.yml build
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ Build failed!${NC}"
-    exit 1
-fi
-
-echo -e "${GREEN}✅ Build successful${NC}"
-
-# Database backup (if exists)
-if docker ps | grep -q zenith_postgres_prod; then
-    echo -e "${BLUE}💾 Backing up database...${NC}"
-    docker exec zenith_postgres_prod pg_dump -U zenith zenith_coder > backup_$(date +%Y%m%d_%H%M%S).sql
-    echo -e "${GREEN}✅ Database backed up${NC}"
-fi
-
-# Deploy with zero downtime
-echo -e "${BLUE}🚀 Deploying with zero downtime...${NC}"
-
-# Start new containers
-docker-compose -f docker-compose.prod.yml up -d
-
-# Wait for health checks
-echo -e "${BLUE}💓 Waiting for services to be healthy...${NC}"
-
-RETRIES=30
-HEALTHY=false
-
-for i in $(seq 1 $RETRIES); do
-    if docker-compose -f docker-compose.prod.yml ps | grep -q "healthy"; then
-        HEALTHY=true
-        break
-    fi
-    echo -n "."
-    sleep 2
-done
-
-echo
-
-if [ "$HEALTHY" = true ]; then
-    echo -e "${GREEN}✅ All services are healthy!${NC}"
-else
-    echo -e "${RED}❌ Services failed health check${NC}"
-    docker-compose -f docker-compose.prod.yml logs
-    exit 1
-fi
+# Wait for services to be ready
+echo "Waiting for services to be healthy..."
+sleep 15
 
 # Run database migrations
-echo -e "${BLUE}📊 Running database migrations...${NC}"
-docker exec zenith_backend_prod alembic upgrade head || echo "No migrations to run"
+echo "Running database migrations..."
+docker exec vi_backend_prod python -m alembic upgrade head 2>/dev/null || echo "Migrations will run on first request"
 
-# Cleanup old containers
-echo -e "${BLUE}🧹 Cleaning up...${NC}"
-docker system prune -f
+# Show status
+echo "Checking service status..."
+docker-compose -f docker-compose.prod.yml ps
 
-# Success message
-echo
-echo -e "${GREEN}🎉 Deployment successful!${NC}"
-echo -e "${GREEN}=================================================${NC}"
-echo
-echo "Access your application at:"
-echo -e "${BLUE}  Frontend: ${NC}https://${DOMAIN}"
-echo -e "${BLUE}  API:      ${NC}https://${DOMAIN}/api"
-echo -e "${BLUE}  Traefik:  ${NC}http://${DOMAIN}:8080"
-echo
-echo -e "${YELLOW}Vibe level: ${GREEN}PEAK DEPLOYMENT FLOW! 🌟${NC}"
-echo
-echo "Next steps:"
-echo "1. Configure your domain DNS to point to this server"
-echo "2. Add API keys to .env.production"
-echo "3. Monitor logs: docker-compose -f docker-compose.prod.yml logs -f"
-echo
-echo -e "${GREEN}Happy Vibecoding! 🚀✨${NC}"
+echo "✅ Deployment complete!"
+echo "Access the application at:"
+echo "  - https://borgtools.ddns.net"
+echo "  - https://borg.tools"
+echo ""
+echo "Traefik dashboard: http://borgtools.ddns.net:8080"
+ENDSSH
+
+echo "✅ Deployment completed successfully!"
+echo ""
+echo "📊 Checking deployment status..."
+ssh ${REMOTE_HOST} "cd ~/vibeintelligence && docker-compose -f docker-compose.prod.yml ps"
+
+# Cleanup local package
+rm -f vibeintelligence_deploy_${TIMESTAMP}.tar.gz

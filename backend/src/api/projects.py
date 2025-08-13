@@ -26,6 +26,9 @@ class ProjectResponse(BaseModel):
     last_modified: datetime
     is_active: bool
     potential_duplicates: List[str]
+    health_score: int
+    vibe_score: int
+    eco_score: int
 
 class ProjectCreate(BaseModel):
     name: str

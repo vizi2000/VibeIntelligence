@@ -8,11 +8,12 @@ from contextlib import asynccontextmanager
 import os
 from dotenv import load_dotenv
 
-from .api import projects, scanner, deployments, health, agents
+from .api import projects, scanner, deployments, health, agents, documentation, deploy
 from .core.config import settings
 from .core.database import engine, Base
 from .mcp.integration import mcp_integration
 from .services.agent_manager import agent_manager
+from .middleware.proxy import ProxyHeadersMiddleware
 
 # Load environment variables
 load_dotenv()
@@ -72,24 +73,30 @@ app = FastAPI(
     title="Zenith Coder API",
     description="AI-powered development platform for organizing and managing projects",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
+    root_path=""  # Important for proper URL generation behind proxy
 )
+
+# Add proxy headers middleware (must be before CORS)
+app.add_middleware(ProxyHeadersMiddleware)
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3100", "http://localhost:3000"],
+    allow_origins=["http://localhost:3100", "http://localhost:3101", "http://localhost:3000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include routers
-app.include_router(health.router, tags=["health"])
+app.include_router(health.router, prefix="/api/v1", tags=["health"])
 app.include_router(projects.router, prefix="/api/v1/projects", tags=["projects"])
 app.include_router(scanner.router, prefix="/api/v1/scanner", tags=["scanner"])
 app.include_router(deployments.router, prefix="/api/v1/deployments", tags=["deployments"])
 app.include_router(agents.router, prefix="/api/v1/agents", tags=["agents"])
+app.include_router(documentation.router, prefix="/api/v1/documentation", tags=["documentation"])
+app.include_router(deploy.router, prefix="/api/v1/deploy", tags=["deploy"])
 
 # Include AI routes if vibecoding is enabled
 if settings.enable_vibecoding:

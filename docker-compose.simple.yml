@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: vi_postgres
+    environment:
+      POSTGRES_DB: vi_db
+      POSTGRES_USER: vi_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-vi_secure_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - vi_network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: vi_redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-vi_redis_secure}
+    volumes:
+      - redis_data:/data
+    networks:
+      - vi_network
+    restart: unless-stopped
+
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: vi_backend
+    ports:
+      - "8100:8000"
+    environment:
+      - DATABASE_URL=postgresql://vi_user:${DB_PASSWORD:-vi_secure_password}@postgres:5432/vi_db
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-vi_redis_secure}@redis:6379
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - HUGGINGFACE_API_TOKEN=${HUGGINGFACE_API_TOKEN}
+      - ENVIRONMENT=production
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - vi_network
+    restart: unless-stopped
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: vi_frontend
+    ports:
+      - "8101:80"
+    environment:
+      - VITE_API_URL=https://vi.borg.tools/api
+    networks:
+      - vi_network
+    restart: unless-stopped
+
+networks:
+  vi_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

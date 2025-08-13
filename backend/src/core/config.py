@@ -61,8 +61,8 @@ class Settings(BaseSettings):
     github_token: Optional[str] = None
     
     # File paths
-    ai_projects_path: str = "/Users/wojciechwiesner/ai"
-    deployment_registry_path: str = "/Users/wojciechwiesner/ai/DEPLOYMENT_REGISTRY.md"
+    ai_projects_path: str = "/ai_projects"
+    deployment_registry_path: str = "/ai_projects/DEPLOYMENT_REGISTRY.md"
     
     # Scanner settings
     scan_exclude_dirs: list = [

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test API</title>
+</head>
+<body>
+    <h1>API Test</h1>
+    <button onclick="testAPI()">Test Projects API</button>
+    <button onclick="testScan()">Test Scan First Project</button>
+    <pre id="output"></pre>
+    
+    <script>
+        async function testAPI() {
+            const output = document.getElementById('output');
+            try {
+                const response = await fetch('http://localhost:3101/api/v1/projects/');
+                const data = await response.json();
+                output.textContent = JSON.stringify(data, null, 2);
+                console.log('Projects loaded:', data.length);
+            } catch (error) {
+                output.textContent = 'Error: ' + error;
+                console.error('Error:', error);
+            }
+        }
+        
+        async function testScan() {
+            const output = document.getElementById('output');
+            try {
+                // Get projects first
+                const projectsResponse = await fetch('http://localhost:3101/api/v1/projects/');
+                const projects = await projectsResponse.json();
+                
+                if (projects.length > 0) {
+                    const firstProject = projects[0];
+                    output.textContent = 'Scanning project: ' + firstProject.name + '\n';
+                    
+                    // Start scan
+                    const scanResponse = await fetch('http://localhost:3101/api/v1/scanner/scan', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            path: firstProject.path,
+                            full_scan: false
+                        })
+                    });
+                    
+                    const scanData = await scanResponse.json();
+                    output.textContent += 'Scan started: ' + JSON.stringify(scanData, null, 2);
+                    
+                    // Check status after 3 seconds
+                    setTimeout(async () => {
+                        const statusResponse = await fetch(`http://localhost:3101/api/v1/scanner/scan/${scanData.scan_id}`);
+                        const status = await statusResponse.json();
+                        output.textContent += '\n\nScan status: ' + JSON.stringify(status, null, 2);
+                    }, 3000);
+                }
+            } catch (error) {
+                output.textContent = 'Error: ' + error;
+                console.error('Error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

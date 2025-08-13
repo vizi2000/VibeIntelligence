@@ -18,7 +18,7 @@ from ..agents.monetization_agent import MonetizationAgent
 from ..agents.task_suggester_agent import TaskSuggesterAgent
 from ..models.agent_task import AgentTask, TaskStatus, TaskPriority, AgentType, AgentSchedule
 from ..models.developer_profile import DeveloperProfile
-from ..core.database import get_db
+from ..core.database import get_db, SessionLocal
 from ..core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -159,90 +159,90 @@ class AgentManager:
     
     async def _process_scheduled_tasks(self) -> None:
         """Process tasks scheduled for execution"""
-        async for db in get_db():
-            try:
-                # Find scheduled tasks ready to run
-                now = datetime.utcnow()
-                scheduled_tasks = db.query(AgentTask).filter(
-                    AgentTask.status == TaskStatus.SCHEDULED,
-                    AgentTask.scheduled_at <= now
-                ).all()
-                
-                for task in scheduled_tasks:
-                    # Check agent schedule limits
-                    if await self._can_run_task(task, db):
-                        task.status = TaskStatus.PENDING
-                        db.commit()
-                        logger.info(f"📋 Activated scheduled task: {task.task_name}")
-                
-            except Exception as e:
-                logger.error(f"Error processing scheduled tasks: {e}")
-                db.rollback()
-            finally:
-                await db.close()
+        db = SessionLocal()
+        try:
+            # Find scheduled tasks ready to run
+            now = datetime.utcnow()
+            scheduled_tasks = db.query(AgentTask).filter(
+                AgentTask.status == TaskStatus.SCHEDULED,
+                AgentTask.scheduled_at <= now
+            ).all()
+            
+            for task in scheduled_tasks:
+                # Check agent schedule limits
+                if await self._can_run_task(task, db):
+                    task.status = TaskStatus.PENDING
+                    db.commit()
+                    logger.info(f"📋 Activated scheduled task: {task.task_name}")
+            
+        except Exception as e:
+            logger.error(f"Error processing scheduled tasks: {e}")
+            db.rollback()
+        finally:
+            db.close()
     
     async def _process_recurring_tasks(self) -> None:
         """Process recurring tasks"""
-        async for db in get_db():
-            try:
-                # Find completed recurring tasks that need to be rescheduled
-                recurring_tasks = db.query(AgentTask).filter(
-                    AgentTask.is_recurring == True,
-                    AgentTask.status == TaskStatus.COMPLETED,
-                    AgentTask.next_run_at <= datetime.utcnow()
-                ).all()
+        db = SessionLocal()
+        try:
+            # Find completed recurring tasks that need to be rescheduled
+            recurring_tasks = db.query(AgentTask).filter(
+                AgentTask.is_recurring == True,
+                AgentTask.status == TaskStatus.COMPLETED,
+                AgentTask.next_run_at <= datetime.utcnow()
+            ).all()
+            
+            for task in recurring_tasks:
+                # Create new instance of recurring task
+                new_task = AgentTask(
+                    developer_id=task.developer_id,
+                    agent_type=task.agent_type,
+                    task_name=task.task_name,
+                    description=task.description,
+                    priority=task.priority,
+                    input_data=task.input_data,
+                    is_recurring=True,
+                    recurrence_pattern=task.recurrence_pattern,
+                    scheduled_at=task.next_run_at
+                )
                 
-                for task in recurring_tasks:
-                    # Create new instance of recurring task
-                    new_task = AgentTask(
-                        developer_id=task.developer_id,
-                        agent_type=task.agent_type,
-                        task_name=task.task_name,
-                        description=task.description,
-                        priority=task.priority,
-                        input_data=task.input_data,
-                        is_recurring=True,
-                        recurrence_pattern=task.recurrence_pattern,
-                        scheduled_at=task.next_run_at
-                    )
-                    
-                    db.add(new_task)
-                    
-                    # Update original task
-                    task.schedule_next_run()
-                    
-                db.commit()
+                db.add(new_task)
                 
-            except Exception as e:
-                logger.error(f"Error processing recurring tasks: {e}")
-                db.rollback()
-            finally:
-                await db.close()
+                # Update original task
+                task.schedule_next_run()
+                
+            db.commit()
+            
+        except Exception as e:
+            logger.error(f"Error processing recurring tasks: {e}")
+            db.rollback()
+        finally:
+            db.close()
     
     async def _cleanup_old_tasks(self) -> None:
         """Clean up old completed tasks"""
-        async for db in get_db():
-            try:
-                # Delete tasks older than 30 days
-                cutoff_date = datetime.utcnow() - timedelta(days=30)
-                old_tasks = db.query(AgentTask).filter(
-                    AgentTask.status.in_([TaskStatus.COMPLETED, TaskStatus.FAILED]),
-                    AgentTask.completed_at < cutoff_date,
-                    AgentTask.is_recurring == False
-                ).all()
-                
-                for task in old_tasks:
-                    db.delete(task)
-                
-                if old_tasks:
-                    db.commit()
-                    logger.info(f"🧹 Cleaned up {len(old_tasks)} old tasks")
-                
-            except Exception as e:
-                logger.error(f"Error cleaning up tasks: {e}")
-                db.rollback()
-            finally:
-                await db.close()
+        db = SessionLocal()
+        try:
+            # Delete tasks older than 30 days
+            cutoff_date = datetime.utcnow() - timedelta(days=30)
+            old_tasks = db.query(AgentTask).filter(
+                AgentTask.status.in_([TaskStatus.COMPLETED, TaskStatus.FAILED]),
+                AgentTask.completed_at < cutoff_date,
+                AgentTask.is_recurring == False
+            ).all()
+            
+            for task in old_tasks:
+                db.delete(task)
+            
+            if old_tasks:
+                db.commit()
+                logger.info(f"🧹 Cleaned up {len(old_tasks)} old tasks")
+            
+        except Exception as e:
+            logger.error(f"Error cleaning up tasks: {e}")
+            db.rollback()
+        finally:
+            db.close()
     
     async def _can_run_task(self, task: AgentTask, db: Session) -> bool:
         """Check if task can run based on agent schedule limits"""
@@ -299,55 +299,55 @@ class AgentManager:
     
     async def _check_stuck_tasks(self) -> None:
         """Check for tasks stuck in running state"""
-        async for db in get_db():
-            try:
-                # Find tasks running for too long
-                timeout = datetime.utcnow() - timedelta(hours=1)
-                stuck_tasks = db.query(AgentTask).filter(
-                    AgentTask.status == TaskStatus.RUNNING,
-                    AgentTask.started_at < timeout
-                ).all()
-                
-                for task in stuck_tasks:
-                    logger.warning(f"⚠️ Found stuck task: {task.task_name}")
-                    task.status = TaskStatus.FAILED
-                    task.error_message = "Task timeout - stuck in running state"
-                    task.completed_at = datetime.utcnow()
-                
-                if stuck_tasks:
-                    db.commit()
-                
-            except Exception as e:
-                logger.error(f"Error checking stuck tasks: {e}")
-                db.rollback()
-            finally:
-                await db.close()
+        db = SessionLocal()
+        try:
+            # Find tasks running for too long
+            timeout = datetime.utcnow() - timedelta(hours=1)
+            stuck_tasks = db.query(AgentTask).filter(
+                AgentTask.status == TaskStatus.RUNNING,
+                AgentTask.started_at < timeout
+            ).all()
+            
+            for task in stuck_tasks:
+                logger.warning(f"⚠️ Found stuck task: {task.task_name}")
+                task.status = TaskStatus.FAILED
+                task.error_message = "Task timeout - stuck in running state"
+                task.completed_at = datetime.utcnow()
+            
+            if stuck_tasks:
+                db.commit()
+            
+        except Exception as e:
+            logger.error(f"Error checking stuck tasks: {e}")
+            db.rollback()
+        finally:
+            db.close()
     
     async def _reset_daily_limits(self) -> None:
         """Reset daily agent schedule limits"""
-        async for db in get_db():
-            try:
-                # Find schedules that need reset
-                yesterday = datetime.utcnow() - timedelta(days=1)
-                schedules = db.query(AgentSchedule).filter(
-                    AgentSchedule.last_reset_at < yesterday
-                ).all()
-                
-                for schedule in schedules:
-                    schedule.daily_runs_count = 0
-                    schedule.daily_tokens_used = 0
-                    schedule.daily_cost_used = 0.0
-                    schedule.last_reset_at = datetime.utcnow()
-                
-                if schedules:
-                    db.commit()
-                    logger.info(f"🔄 Reset daily limits for {len(schedules)} schedules")
-                
-            except Exception as e:
-                logger.error(f"Error resetting daily limits: {e}")
-                db.rollback()
-            finally:
-                await db.close()
+        db = SessionLocal()
+        try:
+            # Find schedules that need reset
+            yesterday = datetime.utcnow() - timedelta(days=1)
+            schedules = db.query(AgentSchedule).filter(
+                AgentSchedule.last_reset_at < yesterday
+            ).all()
+            
+            for schedule in schedules:
+                schedule.daily_runs_count = 0
+                schedule.daily_tokens_used = 0
+                schedule.daily_cost_used = 0.0
+                schedule.last_reset_at = datetime.utcnow()
+            
+            if schedules:
+                db.commit()
+                logger.info(f"🔄 Reset daily limits for {len(schedules)} schedules")
+            
+        except Exception as e:
+            logger.error(f"Error resetting daily limits: {e}")
+            db.rollback()
+        finally:
+            db.close()
     
     async def get_system_stats(self) -> Dict[str, Any]:
         """Get system statistics"""
@@ -360,33 +360,33 @@ class AgentManager:
             "failed_today": 0
         }
         
-        async for db in get_db():
-            try:
-                # Count tasks by status
-                today = datetime.utcnow().date()
-                
-                stats["pending_tasks"] = db.query(AgentTask).filter(
-                    AgentTask.status == TaskStatus.PENDING
-                ).count()
-                
-                stats["running_tasks"] = db.query(AgentTask).filter(
-                    AgentTask.status == TaskStatus.RUNNING
-                ).count()
-                
-                stats["completed_today"] = db.query(AgentTask).filter(
-                    AgentTask.status == TaskStatus.COMPLETED,
-                    AgentTask.completed_at >= today
-                ).count()
-                
-                stats["failed_today"] = db.query(AgentTask).filter(
-                    AgentTask.status == TaskStatus.FAILED,
-                    AgentTask.completed_at >= today
-                ).count()
-                
-            except Exception as e:
-                logger.error(f"Error getting stats: {e}")
-            finally:
-                await db.close()
+        db = SessionLocal()
+        try:
+            # Count tasks by status
+            today = datetime.utcnow().date()
+            
+            stats["pending_tasks"] = db.query(AgentTask).filter(
+                AgentTask.status == TaskStatus.PENDING
+            ).count()
+            
+            stats["running_tasks"] = db.query(AgentTask).filter(
+                AgentTask.status == TaskStatus.RUNNING
+            ).count()
+            
+            stats["completed_today"] = db.query(AgentTask).filter(
+                AgentTask.status == TaskStatus.COMPLETED,
+                AgentTask.completed_at >= today
+            ).count()
+            
+            stats["failed_today"] = db.query(AgentTask).filter(
+                AgentTask.status == TaskStatus.FAILED,
+                AgentTask.completed_at >= today
+            ).count()
+            
+        except Exception as e:
+            logger.error(f"Error getting stats: {e}")
+        finally:
+            db.close()
         
         return stats
     

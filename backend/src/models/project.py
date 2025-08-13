@@ -3,6 +3,7 @@ Project model
 """
 
 from sqlalchemy import Column, Integer, String, Boolean, Float, DateTime, JSON, Text
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from ..core.database import Base
 
@@ -35,6 +36,7 @@ class Project(Base):
     # Vibecoding metrics (v4.0)
     vibe_score = Column(Integer, default=75)  # 0-100 happiness score
     eco_score = Column(Integer, default=80)   # 0-100 sustainability score
+    health_score = Column(Integer, default=0)  # 0-100 project health score
     
     # Duplicates
     duplicate_group_id = Column(String(100), index=True)
@@ -48,3 +50,6 @@ class Project(Base):
     
     # Additional metadata
     metadata_json = Column(JSON, default=dict)
+    
+    # Relationships
+    deployment_configs = relationship("DeploymentConfig", back_populates="project")

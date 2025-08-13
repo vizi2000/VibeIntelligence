@@ -1,0 +1,83 @@
+{
+  "timestamp": "2025-08-04T08:53:20.823Z",
+  "tests": [
+    {
+      "name": "Frontend Accessibility",
+      "status": "PASS",
+      "details": "Frontend is accessible on port 3101",
+      "timestamp": "2025-08-04T08:53:22.169Z"
+    },
+    {
+      "name": "Dashboard Page Load",
+      "status": "PASS",
+      "details": "Found 7 project cards",
+      "timestamp": "2025-08-04T08:53:25.535Z"
+    },
+    {
+      "name": "AI Assistant Card",
+      "status": "FAIL",
+      "details": "AI Assistant card not found",
+      "timestamp": "2025-08-04T08:53:25.535Z"
+    },
+    {
+      "name": "Agent Activity Card",
+      "status": "FAIL",
+      "details": "Agent Activity card not found",
+      "timestamp": "2025-08-04T08:53:25.536Z"
+    },
+    {
+      "name": "Projects Page",
+      "status": "FAIL",
+      "details": "SyntaxError: Failed to execute 'querySelectorAll' on 'Document': 'button:has-text(\"Scan\"), button:has([class*=\"Activity\"])' is not a valid selector.",
+      "timestamp": "2025-08-04T08:53:28.666Z"
+    },
+    {
+      "name": "AI Assistant UI",
+      "status": "FAIL",
+      "details": "Chat interface incomplete",
+      "timestamp": "2025-08-04T08:53:31.736Z"
+    },
+    {
+      "name": "Projects API",
+      "status": "PASS",
+      "details": "Returned 41 projects",
+      "timestamp": "2025-08-04T08:53:31.835Z"
+    },
+    {
+      "name": "Health API",
+      "status": "FAIL",
+      "details": "Status: 404",
+      "timestamp": "2025-08-04T08:53:31.838Z"
+    },
+    {
+      "name": "Project Scan Start",
+      "status": "PASS",
+      "details": "Scan ID: 3c8dc438-56bd-49e0-8ce6-2e6a3ad9240b",
+      "timestamp": "2025-08-04T08:53:31.893Z"
+    },
+    {
+      "name": "Project Scan Status",
+      "status": "PASS",
+      "details": "Status: running",
+      "timestamp": "2025-08-04T08:53:34.928Z"
+    },
+    {
+      "name": "AI Chat API",
+      "status": "PASS",
+      "details": "AI responded successfully",
+      "timestamp": "2025-08-04T08:53:36.954Z"
+    },
+    {
+      "name": "Agent Stats API",
+      "status": "PASS",
+      "details": "Agent system accessible",
+      "timestamp": "2025-08-04T08:53:36.984Z"
+    },
+    {
+      "name": "Agent Tasks API",
+      "status": "PASS",
+      "details": "Found 5 tasks",
+      "timestamp": "2025-08-04T08:53:36.998Z"
+    }
+  ]
+}

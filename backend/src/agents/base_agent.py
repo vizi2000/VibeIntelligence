@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from ..models.agent_task import AgentTask, TaskStatus, TaskPriority, AgentType
 from ..models.developer_activity import DeveloperActivity
 from ..models.developer_profile import DeveloperProfile
-from ..core.database import get_db
+from ..core.database import get_db, SessionLocal
 from ..ai.orchestrator import orchestrator, TaskType
 
 logger = logging.getLogger(__name__)
@@ -76,29 +76,29 @@ class BaseAgent(ABC):
     
     async def _get_next_task(self) -> Optional[AgentTask]:
         """Get next task from database"""
-        async for db in get_db():
-            try:
-                # Get pending tasks for this agent type
-                task = db.query(AgentTask).filter(
-                    AgentTask.agent_type == self.agent_type.value,
-                    AgentTask.status == TaskStatus.PENDING
-                ).order_by(
-                    AgentTask.priority.desc(),
-                    AgentTask.created_at
-                ).first()
+        db = SessionLocal()
+        try:
+            # Get pending tasks for this agent type
+            task = db.query(AgentTask).filter(
+                AgentTask.agent_type == self.agent_type.value,
+                AgentTask.status == TaskStatus.PENDING
+            ).order_by(
+                AgentTask.priority.desc(),
+                AgentTask.created_at
+            ).first()
+            
+            if task:
+                # Mark as running
+                task.status = TaskStatus.RUNNING
+                task.started_at = datetime.utcnow()
+                db.commit()
+                return task
                 
-                if task:
-                    # Mark as running
-                    task.status = TaskStatus.RUNNING
-                    task.started_at = datetime.utcnow()
-                    db.commit()
-                    return task
-                    
-            except Exception as e:
-                logger.error(f"Error getting task: {e}")
-                db.rollback()
-            finally:
-                await db.close()
+        except Exception as e:
+            logger.error(f"Error getting task: {e}")
+            db.rollback()
+        finally:
+            db.close()
         
         return None
     
@@ -106,67 +106,69 @@ class BaseAgent(ABC):
         """Execute task with activity tracking"""
         start_time = datetime.utcnow()
         
-        async for db in get_db():
-            try:
-                # Update task status
-                self._current_task = task
-                
-                # Log activity start
-                activity = DeveloperActivity(
-                    developer_id=task.developer_id,
-                    activity_type="agent_task",
-                    action=f"{self.name} started: {task.task_name}",
-                    session_id=f"agent_{self.agent_type.value}_{task.id}",
-                    started_at=start_time,
-                    details={
-                        "agent_type": self.agent_type.value,
-                        "task_id": task.id,
-                        "task_name": task.task_name
-                    }
-                )
-                db.add(activity)
-                db.commit()
-                
-                # Execute the task
-                result = await self.execute_task(task, db)
-                
-                # Update task with results
-                task.status = TaskStatus.COMPLETED
-                task.completed_at = datetime.utcnow()
-                task.output_data = result
-                task.execution_time_seconds = (task.completed_at - start_time).total_seconds()
-                
-                # Update activity
-                activity.completed_at = task.completed_at
-                activity.success = True
-                activity.calculate_duration()
-                
-                # Schedule next run if recurring
-                if task.is_recurring:
-                    task.schedule_next_run()
-                
-                db.commit()
-                logger.info(f"✅ {self.name} completed task: {task.task_name}")
-                
-            except Exception as e:
-                logger.error(f"❌ Task execution failed: {e}")
-                
-                # Update task status
-                task.status = TaskStatus.FAILED
-                task.error_message = str(e)
-                task.completed_at = datetime.utcnow()
-                
-                # Retry if possible
-                if task.can_retry():
-                    task.retry_count += 1
-                    task.status = TaskStatus.PENDING
-                    task.scheduled_at = datetime.utcnow()
-                
-                db.commit()
-                
-            finally:
-                self._current_task = None
-                await db.close()
+        db = SessionLocal()
+        try:
+            # Re-attach task to new session
+            task = db.merge(task)
+            # Update task status
+            self._current_task = task
+            
+            # Log activity start
+            activity = DeveloperActivity(
+                developer_id=task.developer_id,
+                activity_type="agent_task",
+                action=f"{self.name} started: {task.task_name}",
+                session_id=f"agent_{self.agent_type.value}_{task.id}",
+                started_at=start_time,
+                details={
+                    "agent_type": self.agent_type.value,
+                    "task_id": task.id,
+                    "task_name": task.task_name
+                }
+            )
+            db.add(activity)
+            db.commit()
+            
+            # Execute the task
+            result = await self.execute_task(task, db)
+            
+            # Update task with results
+            task.status = TaskStatus.COMPLETED
+            task.completed_at = datetime.utcnow()
+            task.output_data = result
+            task.execution_time_seconds = (task.completed_at - start_time).total_seconds()
+            
+            # Update activity
+            activity.completed_at = task.completed_at
+            activity.success = True
+            activity.calculate_duration()
+            
+            # Schedule next run if recurring
+            if task.is_recurring:
+                task.schedule_next_run()
+            
+            db.commit()
+            logger.info(f"✅ {self.name} completed task: {task.task_name}")
+            
+        except Exception as e:
+            logger.error(f"❌ Task execution failed: {e}")
+            
+            # Update task status
+            task.status = TaskStatus.FAILED
+            task.error_message = str(e)
+            task.completed_at = datetime.utcnow()
+            
+            # Retry if possible
+            if task.can_retry():
+                task.retry_count += 1
+                task.status = TaskStatus.PENDING
+                task.scheduled_at = datetime.utcnow()
+            
+            db.commit()
+            
+        finally:
+            self._current_task = None
+            db.close()
     
     async def create_task(
         self,
@@ -179,28 +181,28 @@ class BaseAgent(ABC):
         recurrence_pattern: Optional[Dict[str, Any]] = None
     ) -> AgentTask:
         """Create a new task for this agent"""
-        async for db in get_db():
-            try:
-                task = AgentTask(
-                    developer_id=developer_id,
-                    agent_type=self.agent_type.value,
-                    task_name=task_name,
-                    description=description,
-                    priority=priority.value,
-                    input_data=input_data,
-                    is_recurring=is_recurring,
-                    recurrence_pattern=recurrence_pattern
-                )
-                
-                db.add(task)
-                db.commit()
-                db.refresh(task)
-                
-                logger.info(f"📋 Created task: {task_name} for {self.name}")
-                return task
-                
-            finally:
-                await db.close()
+        db = SessionLocal()
+        try:
+            task = AgentTask(
+                developer_id=developer_id,
+                agent_type=self.agent_type.value,
+                task_name=task_name,
+                description=description,
+                priority=priority.value if isinstance(priority, TaskPriority) else priority,
+                input_data=input_data,
+                is_recurring=is_recurring,
+                recurrence_pattern=recurrence_pattern
+            )
+            
+            db.add(task)
+            db.commit()
+            db.refresh(task)
+            
+            logger.info(f"📋 Created task: {task_name} for {self.name}")
+            return task
+            
+        finally:
+            db.close()
     
     async def log_activity(
         self,
@@ -210,26 +212,26 @@ class BaseAgent(ABC):
         details: Optional[Dict[str, Any]] = None
     ) -> None:
         """Log agent activity"""
-        async for db in get_db():
-            try:
-                activity = DeveloperActivity(
-                    developer_id=developer_id,
-                    activity_type=f"agent_{self.agent_type.value}",
-                    action=action,
-                    target=target,
-                    details=details or {},
-                    started_at=datetime.utcnow(),
-                    completed_at=datetime.utcnow()
-                )
-                activity.calculate_duration()
-                
-                db.add(activity)
-                db.commit()
-                
-            except Exception as e:
-                logger.error(f"Failed to log activity: {e}")
-            finally:
-                await db.close()
+        db = SessionLocal()
+        try:
+            activity = DeveloperActivity(
+                developer_id=developer_id,
+                activity_type=f"agent_{self.agent_type.value}",
+                action=action,
+                target=target,
+                details=details or {},
+                started_at=datetime.utcnow(),
+                completed_at=datetime.utcnow()
+            )
+            activity.calculate_duration()
+            
+            db.add(activity)
+            db.commit()
+            
+        except Exception as e:
+            logger.error(f"Failed to log activity: {e}")
+        finally:
+            db.close()
     
     async def use_ai(
         self,

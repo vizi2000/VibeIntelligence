@@ -33,12 +33,16 @@ class ScannerAgent(BaseAgent):
     
     def __init__(self):
         super().__init__(AgentType.SCANNER, "Scanner Agent")
-        self.scanner = ProjectScanner()
+        self.scanner: Optional[ProjectScanner] = None  # Will be initialized per task with db
         self.file_hashes: Dict[str, str] = {}  # Path -> hash
         self.last_scan_times: Dict[int, datetime] = {}  # Project ID -> last scan
     
     async def execute_task(self, task: AgentTask, db: Session) -> Dict[str, Any]:
         """Execute scanner task"""
+        # Initialize scanner with db if not already done
+        if self.scanner is None:
+            self.scanner = ProjectScanner(db)
+            
         task_type = task.input_data.get("scan_type", "quick")
         project_id = task.input_data.get("project_id")
         

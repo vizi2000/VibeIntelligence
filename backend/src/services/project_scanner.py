@@ -20,6 +20,7 @@ from ..models.scan import ScanResult, FileInfo
 from ..core.config import settings
 from ..core.exceptions import ScannerException
 from ..services.ai_service import ai_service
+from ..ai import TaskType
 import logging
 
 logger = logging.getLogger(__name__)
@@ -167,7 +168,7 @@ class ProjectScanner:
         project_info["health_score"] = self._calculate_health_score(project_info)
         
         # AI-powered insights if deep scan
-        if deep_scan and ai_service.is_initialized:
+        if deep_scan and hasattr(ai_service, 'orchestrator') and ai_service.orchestrator:
             insights = await self._get_ai_insights(project_info)
             project_info["ai_insights"] = insights
             
@@ -392,9 +393,9 @@ class ProjectScanner:
             3. Quick win tasks for ADHD-friendly progress
             """
             
-            response = await ai_service.generate(
+            response = await ai_service.orchestrator.generate(
                 prompt=prompt,
-                task_type="analysis",
+                task_type=TaskType.CODE_ANALYSIS,
                 max_tokens=300
             )
             
@@ -415,21 +416,36 @@ class ProjectScanner:
                 Project.path == project_info["path"]
             ).first()
             
+            # Map fields correctly
+            db_fields = {
+                "name": project_info["name"],
+                "path": project_info["path"],
+                "project_type": project_info["type"],  # Map 'type' to 'project_type'
+                "health_score": project_info["health_score"],
+                "has_readme": project_info["has_readme"],
+                "has_tests": project_info["has_tests"],
+                "last_modified": project_info["last_modified"],
+                "size_mb": project_info["size_mb"],
+                "file_count": project_info["file_count"],
+                "vibe_score": project_info["vibe_score"],
+                "eco_score": 80,  # Default eco score
+                "technologies": project_info["languages"],  # Map languages to technologies
+                "is_git_repo": project_info.get("is_git_repo", False),
+                "last_scanned_at": datetime.now()
+            }
+            
             if existing:
                 # Update existing project
-                for key, value in project_info.items():
-                    if hasattr(existing, key) and key != "id":
+                for key, value in db_fields.items():
+                    if hasattr(existing, key):
                         setattr(existing, key, value)
-                existing.last_scan = datetime.now()
             else:
                 # Create new project
-                project = Project(**{
-                    k: v for k, v in project_info.items() 
-                    if k in Project.__table__.columns
-                })
+                project = Project(**db_fields)
                 self.db.add(project)
                 
             self.db.commit()
+            logger.info(f"✅ Saved project {project_info['name']} with health score {project_info['health_score']}")
             
         except Exception as e:
             logger.error(f"Failed to save project to DB: {e}")
