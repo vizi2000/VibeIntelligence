@@ -4,29 +4,29 @@ version: '3.8'
 # Following Directive 4: Security & System Resilience
 
 services:
-  # Traefik Reverse Proxy - Single entry point
-  traefik:
-    image: traefik:v3.0
-    container_name: vi_traefik
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
-      - "--certificatesresolvers.myresolver.acme.email=admin@vibecoder.local"
-      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-    ports:
-      - "80:80"      # Only expose standard ports
-      - "443:443"    # SSL port
-      - "8080:8080"  # Traefik dashboard (secure in production)
-    volumes:
-      - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "./letsencrypt:/letsencrypt"
-    networks:
-      - vi_network
-    restart: unless-stopped
+  # Commented out Traefik since we're using system nginx
+  # traefik:
+  #   image: traefik:v3.0
+  #   container_name: vi_traefik
+  #   command:
+  #     - "--api.insecure=true"
+  #     - "--providers.docker=true"
+  #     - "--providers.docker.exposedbydefault=false"
+  #     - "--entrypoints.web.address=:80"
+  #     - "--entrypoints.websecure.address=:443"
+  #     - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+  #     - "--certificatesresolvers.myresolver.acme.email=admin@vibecoder.local"
+  #     - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+  #   ports:
+  #     - "80:80"      # Only expose standard ports
+  #     - "443:443"    # SSL port
+  #     - "8080:8080"  # Traefik dashboard (secure in production)
+  #   volumes:
+  #     - "/var/run/docker.sock:/var/run/docker.sock:ro"
+  #     - "./letsencrypt:/letsencrypt"
+  #   networks:
+  #     - vi_network
+  #   restart: unless-stopped
 
   # PostgreSQL Database
   postgres:
@@ -76,6 +76,8 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - HUGGINGFACE_API_TOKEN=${HUGGINGFACE_API_TOKEN}
       - ENVIRONMENT=production
+    ports:
+      - "8100:8000"  # Map internal 8000 to host 8100
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,6 +113,8 @@ services:
     container_name: vi_frontend_prod
     environment:
       - VITE_API_URL=/api
+    ports:
+      - "3001:80"  # Map internal nginx 80 to host 3001
     networks:
       - vi_network
     restart: unless-stopped
