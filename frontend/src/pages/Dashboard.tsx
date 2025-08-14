@@ -109,7 +109,7 @@ export default function Dashboard() {
                 <div className="h-2 bg-gray-200 rounded w-1/2"></div>
               </div>
             </Card>
-          ) : projects && projects.length > 0 ? (
+          ) : projects && Array.isArray(projects) && projects.length > 0 ? (
             projects.slice(0, 5).map((project: any) => (
               <Card key={project.id} className="overflow-hidden card-hover">
                 <CardContent className="p-6">
@@ -240,7 +240,7 @@ export default function Dashboard() {
               <div className="pt-4 border-t">
                 <p className="text-sm text-gray-600 mb-3">Recent Agent Tasks</p>
                 <div className="space-y-2">
-                  {agentTasks?.slice(0, 3).map((task: any, index: number) => (
+                  {Array.isArray(agentTasks) && agentTasks.slice(0, 3).map((task: any, index: number) => (
                     <div key={task.id || index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
                       <span className="text-sm truncate">{task.task_type}</span>
                       {task.status === 'completed' ? (

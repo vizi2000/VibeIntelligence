@@ -171,7 +171,7 @@ export interface ScanResult {
 
 export const projectsApi = {
   async getProjects(): Promise<Project[]> {
-    const { data } = await api.get<Project[]>('/projects');
+    const { data } = await api.get<Project[]>('/projects/');
     return data;
   },
 
